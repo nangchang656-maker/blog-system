@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(java -version:*)",
+      "Bash(mvn:*)",
+      "WebSearch",
+      "Bash(find:*)",
+      "Bash(tree:*)",
+      "Bash(curl:*)",
+      "Bash(mkdir:*)",
+      "Bash(cp:*)",
+      "Bash(__NEW_LINE__ ls -la /home/lzx/projects2/MyBlog/blog-application/src/main/java/cn/lzx/blog/controller/admin/)",
+      "Bash(__NEW_LINE__ echo \"=== SQL DIRECTORY ===\")",
+      "Bash(cat:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

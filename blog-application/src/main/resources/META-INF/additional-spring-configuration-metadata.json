@@ -1,0 +1,37 @@
+{"properties": [
+  {
+    "name": "minio.endpoint",
+    "type": "java.lang.String",
+    "description": "MinIO 服务器端点 URL (例如: http://localhost:9000)"
+  },
+  {
+    "name": "minio.access-key",
+    "type": "java.lang.String",
+    "description": "MinIO 访问密钥,用于身份验证"
+  },
+  {
+    "name": "minio.secret-key",
+    "type": "java.lang.String",
+    "description": "MinIO 密钥,用于身份验证"
+  },
+  {
+    "name": "minio.bucket-name",
+    "type": "java.lang.String",
+    "description": "默认的存储桶名称,用于存储文件"
+  },
+  {
+    "name": "zhipu.ai.api-key",
+    "type": "java.lang.String",
+    "description": "智普AI API密钥,用于调用智普AI服务的身份验证"
+  },
+  {
+    "name": "zhipu.ai.model",
+    "type": "java.lang.String",
+    "description": "智普AI模型名称 (例如: glm-4-flash, glm-4-plus)"
+  },
+  {
+    "name": "zhipu.ai.timeout",
+    "type": "java.lang.String",
+    "description": "智普AI API请求超时时间 (单位: 秒)"
+  }
+]}
