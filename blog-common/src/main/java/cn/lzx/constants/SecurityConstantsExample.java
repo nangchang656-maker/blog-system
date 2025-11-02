@@ -6,7 +6,7 @@ package cn.lzx.constants;
  * @author lzx
  * @since 2025-10-31
  */
-public class SecurityConstants {
+public class SecurityConstantsExample {
 
     /**
      * JWT密钥
