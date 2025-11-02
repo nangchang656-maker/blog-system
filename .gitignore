@@ -32,6 +32,9 @@ build/
 ### VS Code ###
 .vscode/
 
+### Claude Code ###
+.claude/
+
 ### 配置文件安全 ###
 # 主配置文件(包含敏感信息 - 数据库密码/API密钥等)
 **/application.yml
