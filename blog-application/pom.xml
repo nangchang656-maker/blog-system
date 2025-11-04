@@ -77,10 +77,16 @@
             <artifactId>rocketmq-spring-boot-starter</artifactId>
         </dependency>
 
-        <!-- 智普AI SDK -->
+        <!-- LangChain4j Core -->
         <dependency>
-            <groupId>cn.bigmodel.openapi</groupId>
-            <artifactId>oapi-java-sdk</artifactId>
+            <groupId>dev.langchain4j</groupId>
+            <artifactId>langchain4j</artifactId>
+        </dependency>
+
+        <!-- LangChain4j ZhipuAI Integration -->
+        <dependency>
+            <groupId>dev.langchain4j</groupId>
+            <artifactId>langchain4j-zhipu-ai</artifactId>
         </dependency>
 
         <!-- Elasticsearch - 手动配置 7.17 版本(不使用 Spring Boot starter) -->

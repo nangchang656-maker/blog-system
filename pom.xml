@@ -55,7 +55,7 @@
         <lombok.version>1.18.30</lombok.version>
         <minio.version>8.5.12</minio.version>
         <rocketmq.version>2.3.0</rocketmq.version>
-        <zhipu-ai.version>release-V4-2.4.1</zhipu-ai.version>
+        <langchain4j.version>0.36.2</langchain4j.version>
         <elasticsearch.version>7.17.18</elasticsearch.version>
 
     </properties>
@@ -175,11 +175,18 @@
                 <version>${rocketmq.version}</version> <!-- 对应RocketMQ 5.1.4 -->
             </dependency>
 
-            <!-- 智普AI SDK -->
+            <!-- LangChain4j Core -->
             <dependency>
-                <groupId>cn.bigmodel.openapi</groupId>
-                <artifactId>oapi-java-sdk</artifactId>
-                <version>${zhipu-ai.version}</version>
+                <groupId>dev.langchain4j</groupId>
+                <artifactId>langchain4j</artifactId>
+                <version>${langchain4j.version}</version>
+            </dependency>
+
+            <!-- LangChain4j ZhipuAI Integration -->
+            <dependency>
+                <groupId>dev.langchain4j</groupId>
+                <artifactId>langchain4j-zhipu-ai</artifactId>
+                <version>${langchain4j.version}</version>
             </dependency>
 
             <!-- Elasticsearch - 手动配置 7.17 版本(不使用 Spring Boot starter) -->

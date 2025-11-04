@@ -118,9 +118,12 @@ rocketmq:
     retry-times-when-send-failed: 2
     retry-times-when-send-async-failed: 2
 
-# 智普AI 配置
+# 智普AI 配置 (LangChain4j)
 zhipu:
   ai:
     api-key: b74a6feb90cb48f5af873550811356c6.NlnS1r5hpa1rA39q
-    model: glm-4
-    timeout: 30000
+    model: glm-4  # 可选: glm-4, glm-4-plus, glm-3-turbo
+    timeout: 30000  # 超时时间(毫秒)
+    temperature: 0.7  # 温度参数(0.0-1.0), 控制随机性
+    top-p: 0.95  # Top P参数(0.0-1.0), 控制多样性
+    max-tokens: 2000  # 最大生成token数

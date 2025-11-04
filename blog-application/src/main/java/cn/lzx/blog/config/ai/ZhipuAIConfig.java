@@ -1,13 +1,17 @@
 package cn.lzx.blog.config.ai;
 
-import com.zhipu.oapi.ClientV4;
+import dev.langchain4j.model.chat.ChatLanguageModel;
+import dev.langchain4j.model.zhipu.ZhipuAiChatModel;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 /**
- * 智普AI配置类
+ * 智普AI配置类 - 使用LangChain4j集成
+ *
+ * @author lzx
+ * @since 2025-11-04
  */
 @Slf4j
 @Configuration
@@ -17,12 +21,20 @@ public class ZhipuAIConfig {
     private final ZhipuAIProperties properties;
 
     /**
-     * 创建智普AI客户端
+     * 创建智普AI聊天模型
+     * 使用LangChain4j的统一接口ChatLanguageModel
      */
     @Bean
-    public ClientV4 zhipuClient() {
-        log.info("初始化智普AI客户端, model={}, timeout={}ms",
-                properties.getModel(), properties.getTimeout());
-        return new ClientV4.Builder(properties.getApiKey()).build();
+    public ChatLanguageModel zhipuAiChatModel() {
+        log.info("初始化智普AI聊天模型 (LangChain4j), model={}", properties.getModel());
+
+        return ZhipuAiChatModel.builder()
+                .apiKey(properties.getApiKey())
+                .model(properties.getModel())
+                .temperature(properties.getTemperature())
+                .topP(properties.getTopP())
+                .logRequests(true)
+                .logResponses(true)
+                .build();
     }
 }

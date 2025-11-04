@@ -1,29 +1,22 @@
 package cn.lzx.blog.integration.ai;
 
-import com.zhipu.oapi.ClientV4;
-import com.zhipu.oapi.service.v4.model.ChatCompletionRequest;
-import com.zhipu.oapi.service.v4.model.ChatMessage;
-import com.zhipu.oapi.service.v4.model.ChatMessageRole;
-import com.zhipu.oapi.service.v4.model.ModelApiResponse;
-
-import cn.lzx.blog.config.ai.ZhipuAIProperties;
+import dev.langchain4j.model.chat.ChatLanguageModel;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
-import java.util.List;
-
 /**
- * 智普AI服务类
+ * 智普AI服务类 - 使用LangChain4j
+ *
+ * @author lzx
+ * @since 2025-11-04
  */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class ZhipuAIService {
 
-    private final ClientV4 zhipuClient;
-    private final ZhipuAIProperties properties;
+    private final ChatLanguageModel chatLanguageModel;
 
     /**
      * 生成文章摘要
@@ -34,7 +27,9 @@ public class ZhipuAIService {
     public String generateSummary(String content) {
         try {
             String prompt = String.format(AIConstants.PROMPT_SUMMARY, content);
-            return invokeAI(prompt);
+            String response = chatLanguageModel.generate(prompt);
+            log.info("生成文章摘要成功, 内容长度: {}", response.length());
+            return response;
         } catch (Exception e) {
             log.error("生成文章摘要失败", e);
             return AIConstants.DEFAULT_SUMMARY;
@@ -50,7 +45,9 @@ public class ZhipuAIService {
     public String polishContent(String content) {
         try {
             String prompt = String.format(AIConstants.PROMPT_POLISH, content);
-            return invokeAI(prompt);
+            String response = chatLanguageModel.generate(prompt);
+            log.info("润色文章内容成功, 原始长度: {}, 润色后长度: {}", content.length(), response.length());
+            return response;
         } catch (Exception e) {
             log.error("润色文章内容失败", e);
             throw new RuntimeException(AIConstants.ERROR_FAILED, e);
@@ -66,44 +63,29 @@ public class ZhipuAIService {
     public String generateOutline(String topic) {
         try {
             String prompt = String.format(AIConstants.PROMPT_OUTLINE, topic);
-            return invokeAI(prompt);
+            String response = chatLanguageModel.generate(prompt);
+            log.info("生成文章大纲成功, 主题: {}, 大纲长度: {}", topic, response.length());
+            return response;
         } catch (Exception e) {
-            log.error("生成文章大纲失败", e);
+            log.error("生成文章大纲失败, 主题: {}", topic, e);
             throw new RuntimeException(AIConstants.ERROR_FAILED, e);
         }
     }
 
     /**
-     * 调用智普AI
+     * 通用AI对话接口
      *
-     * @param prompt 提示词
-     * @return AI响应内容
+     * @param userMessage 用户消息
+     * @return AI回复
      */
-    private String invokeAI(String prompt) {
-        // 构建消息列表
-        List<ChatMessage> messages = new ArrayList<>();
-        ChatMessage userMessage = new ChatMessage(ChatMessageRole.USER.value(), prompt);
-        messages.add(userMessage);
-
-        // 构建请求
-        ChatCompletionRequest request = ChatCompletionRequest.builder()
-                .model(properties.getModel())
-                .stream(Boolean.FALSE)  // 非流式调用,一次性返回完整结果
-                .messages(messages)
-                .build();
-
-        // 调用API
-        ModelApiResponse response = zhipuClient.invokeModelApi(request);
-
-        // 提取响应内容
-        if (response != null && response.getData() != null
-                && response.getData().getChoices() != null
-                && !response.getData().getChoices().isEmpty()) {
-            String content = response.getData().getChoices().get(0).getMessage().getContent().toString();
-            log.info("AI响应成功, 内容长度: {}", content.length());
-            return content;
+    public String chat(String userMessage) {
+        try {
+            String response = chatLanguageModel.generate(userMessage);
+            log.info("AI对话成功, 问题长度: {}, 回复长度: {}", userMessage.length(), response.length());
+            return response;
+        } catch (Exception e) {
+            log.error("AI对话失败", e);
+            throw new RuntimeException(AIConstants.ERROR_FAILED, e);
         }
-
-        throw new RuntimeException("AI响应为空");
     }
 }
