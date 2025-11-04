@@ -18,17 +18,25 @@ import lombok.extern.slf4j.Slf4j;
  * Token服务类
  * 负责Token的生成、验证、刷新、注销等操作
  *
- * 设计思路：JWT + Redis 混合方案（优化版）
- * - AccessToken：JWT无状态认证（15分钟短期有效）
- * - 不使用黑名单机制，保持JWT无状态特性
- * - 每次请求只验证JWT签名，无需访问Redis
- * - RefreshToken：UUID存储在Redis（7天长期有效）
- * - 用于刷新AccessToken
- * - 注销时删除RefreshToken，阻止生成新Token
+ * 设计思路：JWT + Redis 混合方案（黑名单增强版）
  *
- * 权衡说明：
- * - 注销后AccessToken最多15分钟内仍有效（可接受的安全风险）
- * - 获得了真正的无状态认证和高性能（无需每次请求访问Redis）
+ * 1. AccessToken：JWT短期认证（15分钟）
+ *    - 一般请求：纯JWT验证，不查Redis（高性能）
+ *    - 敏感操作：JWT验证 + 黑名单检查（高安全）
+ *
+ * 2. RefreshToken：Redis存储（7天）
+ *    - UUID存储在Redis
+ *    - 用于刷新AccessToken
+ *    - 注销时删除，阻止生成新Token
+ *
+ * 3. AccessToken黑名单：Redis Set存储（15分钟）
+ *    - 注销/强制下线时加入黑名单
+ *    - 敏感操作时检查黑名单
+ *    - 自动过期，无需手动清理
+ *
+ * 应用场景：
+ * - validateAccessToken(): 一般业务请求（文章列表、详情等）
+ * - validateAccessTokenWithBlacklist(): 敏感操作（注销、修改密码、删除数据等）
  *
  * @author lzx
  * @since 2025-10-31
@@ -128,19 +136,30 @@ public class TokenService {
     }
 
     /**
-     * 注销Token（删除RefreshToken）
+     * 注销Token（删除RefreshToken + AccessToken加入黑名单）
      *
      * 设计说明：
-     * - 只删除RefreshToken，阻止用户刷新生成新的AccessToken
-     * - 不使用黑名单机制，AccessToken会在15分钟后自然过期
-     * - 这样保持了JWT的无状态特性，避免每次请求都访问Redis
+     * - 删除RefreshToken，阻止用户刷新生成新的AccessToken
+     * - 将当前AccessToken加入黑名单，立即失效
+     * - 黑名单有效期15分钟（与AccessToken有效期一致）
      *
      * @param userId 用户ID
+     * @param accessToken 当前AccessToken
      */
-    public void logout(Long userId) {
-        // 删除RefreshToken，阻止刷新AccessToken
+    public void logout(Long userId, String accessToken) {
+        // 1. 删除RefreshToken，阻止刷新AccessToken
         String refreshTokenKey = RedisKeyEnum.KEY_REFRESH_TOKEN.getKey(userId);
         redisService.delete(refreshTokenKey);
+
+        // 2. 将AccessToken加入黑名单
+        if (accessToken != null && !accessToken.isEmpty()) {
+            String blacklistKey = RedisKeyEnum.KEY_ACCESS_TOKEN_BLACKLIST.getKey(userId);
+            long remainingTime = jwtTokenUtil.getTokenRemainingTime(accessToken);
+            if (remainingTime > 0) {
+                redisService.addToBlacklist(blacklistKey, accessToken, remainingTime, TimeUnit.SECONDS);
+                log.info("用户ID {} AccessToken已加入黑名单，剩余时间: {}秒", userId, remainingTime);
+            }
+        }
 
         log.info("用户ID {} 注销成功", userId);
     }
@@ -150,14 +169,26 @@ public class TokenService {
      *
      * 设计说明：
      * - 删除RefreshToken，阻止用户刷新生成新的AccessToken
-     * - AccessToken会在15分钟后自然过期
+     * - 将当前AccessToken加入黑名单，立即失效
+     * - 用于敏感操作，确保用户立即无法继续操作
      *
      * @param userId 用户ID
+     * @param accessToken 当前AccessToken（可选）
      */
-    public void forceLogout(Long userId) {
-        // 删除RefreshToken，阻止刷新AccessToken
+    public void forceLogout(Long userId, String accessToken) {
+        // 1. 删除RefreshToken，阻止刷新AccessToken
         String refreshTokenKey = RedisKeyEnum.KEY_REFRESH_TOKEN.getKey(userId);
         redisService.delete(refreshTokenKey);
+
+        // 2. 将AccessToken加入黑名单
+        if (accessToken != null && !accessToken.isEmpty()) {
+            String blacklistKey = RedisKeyEnum.KEY_ACCESS_TOKEN_BLACKLIST.getKey(userId);
+            long remainingTime = jwtTokenUtil.getTokenRemainingTime(accessToken);
+            if (remainingTime > 0) {
+                redisService.addToBlacklist(blacklistKey, accessToken, remainingTime, TimeUnit.SECONDS);
+                log.info("用户ID {} AccessToken已强制加入黑名单，剩余时间: {}秒", userId, remainingTime);
+            }
+        }
 
         log.info("用户ID {} 被强制下线", userId);
     }
@@ -169,6 +200,7 @@ public class TokenService {
      * - 采用纯JWT验证，不查询Redis黑名单，保持无状态特性
      * - AccessToken有效期15分钟，注销后最多15分钟内失效
      * - 通过删除RefreshToken阻止生成新的AccessToken
+     * - 适用场景：普通业务请求，追求高性能
      *
      * @param accessToken AccessToken
      * @return true-有效 false-无效
@@ -183,6 +215,58 @@ public class TokenService {
         }
 
         return jwtTokenUtil.validateToken(accessToken, userId, username);
+    }
+
+    /**
+     * 验证AccessToken有效性（检查黑名单）
+     *
+     * 设计说明：
+     * - 先验证JWT签名和过期时间
+     * - 再检查Redis黑名单
+     * - 适用场景：敏感操作（注销、修改密码、修改重要信息、删除数据等）
+     * - 性能影响：每次需查询Redis，但保证了安全性
+     *
+     * @param accessToken AccessToken
+     * @return true-有效 false-无效（过期或在黑名单中）
+     */
+    public boolean validateAccessTokenWithBlacklist(String accessToken) {
+        // 1. 先验证JWT基本有效性
+        if (!validateAccessToken(accessToken)) {
+            return false;
+        }
+
+        // 2. 检查是否在黑名单中
+        Long userId = jwtTokenUtil.getUserIdFromToken(accessToken);
+        if (userId == null) {
+            return false;
+        }
+
+        String blacklistKey = RedisKeyEnum.KEY_ACCESS_TOKEN_BLACKLIST.getKey(userId);
+        Boolean isBlacklisted = redisService.isInBlacklist(blacklistKey, accessToken);
+
+        if (Boolean.TRUE.equals(isBlacklisted)) {
+            log.warn("AccessToken在黑名单中，用户ID: {}", userId);
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * 检查AccessToken是否在黑名单中
+     *
+     * @param accessToken AccessToken
+     * @return true-在黑名单中 false-不在黑名单中
+     */
+    public boolean isTokenBlacklisted(String accessToken) {
+        Long userId = jwtTokenUtil.getUserIdFromToken(accessToken);
+        if (userId == null) {
+            return false;
+        }
+
+        String blacklistKey = RedisKeyEnum.KEY_ACCESS_TOKEN_BLACKLIST.getKey(userId);
+        Boolean isBlacklisted = redisService.isInBlacklist(blacklistKey, accessToken);
+        return Boolean.TRUE.equals(isBlacklisted);
     }
 
     /**

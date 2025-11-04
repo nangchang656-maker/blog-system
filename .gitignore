@@ -35,29 +35,10 @@ build/
 ### Claude Code ###
 .claude/
 
-### 配置文件安全 ###
-# 主配置文件(包含敏感信息 - 数据库密码/API密钥等)
-**/application.yml
-**/application.yaml
-**/application.properties
-
-# 生产环境配置(包含敏感信息)
-**/application-prod.yml
-**/application-prod.yaml
-**/application-prod.properties
-
-# 本地配置覆盖文件
-**/application-local.yml
-**/application-local.yaml
-**/application-local.properties
-
 # 环境变量配置
 .env
 .env.local
 .env.*.local
-
-# JWT密钥配置文件(包含敏感信息)
-**/SecurityConstants.java
 
 ### 项目文档 ###
 # 开发指导文档(不提交到远程)

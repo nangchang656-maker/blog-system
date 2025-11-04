@@ -25,11 +25,11 @@ public enum RedisKeyEnum {
     KEY_REFRESH_TOKEN("blog:auth:refresh_token:%s", 7 * 24 * 60 * 60),
 
     /**
-     * JWT黑名单(已废弃,改用短期AccessToken) - KEY格式: blog:auth:jwt_blacklist:{token} 过期时间: 动态(token剩余时间)
-     * 废弃原因：采用15分钟短期AccessToken，注销后自然过期，保持JWT无状态特性
+     * AccessToken黑名单(用于敏感操作) - KEY格式: blog:auth:token_blacklist:{userId} 过期时间: 15分钟
+     * 说明：使用Set存储该用户被加入黑名单的token，过期时间与AccessToken一致
+     * 应用场景：注销、禁用账号、修改密码等敏感操作
      */
-    @Deprecated
-    KEY_JWT_BLACKLIST("blog:auth:jwt_blacklist:%s", -1),
+    KEY_ACCESS_TOKEN_BLACKLIST("blog:auth:token_blacklist:%s", 15 * 60),
 
     /**
      * 用户信息缓存 - KEY格式: blog:user:info:{userId} 过期时间: 30分钟

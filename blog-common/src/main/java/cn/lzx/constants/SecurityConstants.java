@@ -6,14 +6,12 @@ package cn.lzx.constants;
  * @author lzx
  * @since 2025-10-31
  */
-public class SecurityConstantsExample {
+public class SecurityConstants {
 
     /**
      * JWT密钥
-     * 重要提示: 请修改为你自己的随机密钥(至少32位字符)
-     * 生成方法: 可使用UUID或随机字符串生成器
      */
-    public static final String JWT_SECRET = "YOUR_JWT_SECRET_KEY_PLEASE_CHANGE_THIS_TO_A_RANDOM_STRING";
+    public static final String JWT_SECRET = "Security_Key_lzx_Blog_abcdefghijklmnopqrstuvwxyz0123456789";
 
     /**
      * AccessToken过期时间(15分钟)单位:毫秒

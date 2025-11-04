@@ -29,7 +29,7 @@ public class BlogApplication {
         SpringApplication.run(BlogApplication.class, args);
         System.out.println("\n========================================");
         System.out.println("个人博客系统启动成功！");
-        System.out.println("接口文档地址: http://localhost:8088/doc.html");
+        System.out.println("接口文档地址: http://localhost:8088/swagger-ui.html");
         System.out.println("Druid监控: http://localhost:8088/druid (admin/admin123)");
         System.out.println("========================================\n");
     }

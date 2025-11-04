@@ -13,6 +13,7 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.web.cors.CorsConfigurationSource;
 
 import cn.lzx.filter.JwtAuthenticationFilter;
 import cn.lzx.handler.AuthenticationEntryPointImpl;
@@ -69,6 +70,10 @@ public class SecurityConfig {
      * 自定义请求匹配器,用于匹配标注了 @NoLogin 注解的接口
      */
     private final NoLoginRequestMatcher noLoginRequestMatcher;
+    /*
+     * CORS跨域配置源
+     */
+    private final CorsConfigurationSource corsConfigurationSource;
 
     /**
      * 密码编码器
@@ -95,8 +100,8 @@ public class SecurityConfig {
                 // 禁用CSRF（使用JWT不需要CSRF保护）
                 .csrf(AbstractHttpConfigurer::disable)
 
-                // 禁用CORS（根据需要可以启用）
-                .cors(AbstractHttpConfigurer::disable)
+                // 启用CORS（支持跨域访问）
+                .cors(cors -> cors.configurationSource(corsConfigurationSource))
 
                 // 禁用Session（使用JWT无状态认证）
                 .sessionManagement(session -> session

@@ -11,8 +11,8 @@ spring:
     type: com.alibaba.druid.pool.DruidDataSource
     driver-class-name: com.mysql.cj.jdbc.Driver
     url: jdbc:mysql://localhost:3306/blog_db?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false
-    username: your_database_username
-    password: your_database_password
+    username: root
+    password: 123456
     druid:
       initial-size: 5
       min-idle: 5
@@ -23,8 +23,8 @@ spring:
       stat-view-servlet:
         enabled: true
         url-pattern: /druid/*
-        login-username: your_druid_username
-        login-password: your_druid_password
+        login-username: admin
+        login-password: admin123
         reset-enable: false
       web-stat-filter:
         enabled: true
@@ -36,7 +36,7 @@ spring:
     redis:
       host: localhost
       port: 6379
-      password: your_redis_password
+      password: 123456
       database: 0
       timeout: 5000ms
       lettuce:
@@ -55,8 +55,8 @@ spring:
   # qq邮箱
   mail:
     host: smtp.qq.com
-    username: your_email@qq.com
-    password: your_email_authorization_code
+    username: 2823980197@qq.com
+    password: anjcrtvgrcqudgee
     properties:
       mail:
         smtp:
@@ -81,7 +81,7 @@ mybatis-plus:
   # 实体类别名扫描包
   type-aliases-package: cn.lzx.entity
 
-# Knife4j 配置
+# Springdoc OpenAPI + Swagger UI 配置
 springdoc:
   api-docs:
     enabled: true
@@ -89,10 +89,10 @@ springdoc:
   swagger-ui:
     enabled: true
     path: /swagger-ui.html
-knife4j:
-  enable: true
-  setting:
-    language: zh-CN
+    tags-sorter: alpha
+    operations-sorter: alpha
+  default-consumes-media-type: application/json
+  default-produces-media-type: application/json
 
 # 日志配置
 logging:
@@ -105,8 +105,8 @@ logging:
 
 minio:
   endpoint: http://localhost:9000
-  access-key: your_minio_access_key
-  secret-key: your_minio_secret_key
+  access-key: admin
+  secret-key: minioadmin
   bucket-name: blog-files
 
 # RocketMQ 配置
@@ -121,6 +121,6 @@ rocketmq:
 # 智普AI 配置
 zhipu:
   ai:
-    api-key: your_zhipu_ai_api_key
+    api-key: b74a6feb90cb48f5af873550811356c6.NlnS1r5hpa1rA39q
     model: glm-4
     timeout: 30000

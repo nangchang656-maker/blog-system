@@ -1,85 +1,205 @@
 <script setup lang="ts">
-import { RouterLink, RouterView } from 'vue-router'
-import HelloWorld from './components/HelloWorld.vue'
+import { RouterLink, RouterView, useRouter } from 'vue-router'
+import { onMounted } from 'vue'
+import { useUserStore } from '@/stores/user'
+
+const router = useRouter()
+const userStore = useUserStore()
+
+// 初始化时加载用户信息
+onMounted(async () => {
+  // 如果有 token 但没有用户信息，自动加载
+  if (userStore.token && !userStore.userInfo) {
+    await userStore.getUserInfo()
+  }
+})
+
+// 退出登录
+const handleLogout = async () => {
+  await userStore.logout()
+  router.push('/')
+}
 </script>
 
 <template>
-  <header>
-    <img alt="Vue logo" class="logo" src="@/assets/logo.svg" width="125" height="125" />
+  <el-container class="layout-container">
+    <el-header class="header" height="60px">
+      <div class="header-content">
+        <!-- Logo -->
+        <div class="logo">
+          <RouterLink to="/">MyBlog</RouterLink>
+        </div>
 
-    <div class="wrapper">
-      <HelloWorld msg="You did it!" />
+        <!-- 导航菜单 -->
+        <el-menu mode="horizontal" class="nav-menu" :ellipsis="false">
+          <el-menu-item index="1">
+            <RouterLink to="/">首页</RouterLink>
+          </el-menu-item>
+          <el-menu-item index="2" v-if="userStore.isLoggedIn">
+            <RouterLink to="/profile">个人中心</RouterLink>
+          </el-menu-item>
+        </el-menu>
 
-      <nav>
-        <RouterLink to="/">Home</RouterLink>
-        <RouterLink to="/about">About</RouterLink>
-      </nav>
-    </div>
-  </header>
+        <!-- 用户操作区 -->
+        <div class="user-actions">
+          <template v-if="!userStore.isLoggedIn">
+            <RouterLink to="/login">
+              <el-button type="primary" size="default">登录</el-button>
+            </RouterLink>
+            <RouterLink to="/register">
+              <el-button size="default">注册</el-button>
+            </RouterLink>
+          </template>
+          <template v-else>
+            <el-dropdown>
+              <el-avatar :size="40" :src="userStore.userInfo?.avatar || 'https://cube.elemecdn.com/0/88/03b0d39583f48206768a7534e55bcpng.png'" />
+              <template #dropdown>
+                <el-dropdown-menu>
+                  <el-dropdown-item>
+                    <RouterLink to="/profile">个人信息</RouterLink>
+                  </el-dropdown-item>
+                  <el-dropdown-item>
+                    <RouterLink to="/edit-profile">修改信息</RouterLink>
+                  </el-dropdown-item>
+                  <el-dropdown-item divided @click="handleLogout">退出登录</el-dropdown-item>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
+          </template>
+        </div>
+      </div>
+    </el-header>
 
-  <RouterView />
+    <el-main class="main-content">
+      <RouterView />
+    </el-main>
+
+    <el-footer class="footer" height="60px">
+      <p>© 2025 MyBlog. All rights reserved.</p>
+    </el-footer>
+  </el-container>
 </template>
 
 <style scoped>
-header {
-  line-height: 1.5;
-  max-height: 100vh;
+.layout-container {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.header {
+  background-color: #fff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  padding: 0 20px;
+  height: 60px !important;
+  line-height: 60px;
+  width: 100%;
+}
+
+.header-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 100%;
+  width: 100%;
 }
 
 .logo {
+  flex-shrink: 0;
+}
+
+.logo a {
+  font-size: 24px;
+  font-weight: bold;
+  color: #409eff;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.logo a:hover {
+  opacity: 0.8;
+}
+
+.nav-menu {
+  flex: 1;
+  margin: 0 20px;
+  border-bottom: none;
+  min-width: 0;
+}
+
+.nav-menu a {
+  color: inherit;
+  text-decoration: none;
   display: block;
-  margin: 0 auto 2rem;
 }
 
-nav {
+.user-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.user-actions a {
+  text-decoration: none;
+}
+
+.user-actions .el-dropdown a {
+  color: inherit;
+}
+
+.main-content {
+  flex: 1;
+  background-color: #f5f5f5;
+  padding: 20px;
   width: 100%;
-  font-size: 12px;
+  overflow-x: hidden;
+}
+
+.footer {
+  background-color: #fff;
   text-align: center;
-  margin-top: 2rem;
+  color: #666;
+  border-top: 1px solid #e8e8e8;
+  height: 60px !important;
+  line-height: 60px;
+  width: 100%;
 }
 
-nav a.router-link-exact-active {
-  color: var(--color-text);
+.footer p {
+  margin: 0;
 }
 
-nav a.router-link-exact-active:hover {
-  background-color: transparent;
+/* 响应式布局 - 平板 */
+@media screen and (max-width: 1024px) {
+  .nav-menu {
+    margin: 0 15px;
+  }
 }
 
-nav a {
-  display: inline-block;
-  padding: 0 1rem;
-  border-left: 1px solid var(--color-border);
-}
-
-nav a:first-of-type {
-  border: 0;
-}
-
-@media (min-width: 1024px) {
-  header {
-    display: flex;
-    place-items: center;
-    padding-right: calc(var(--section-gap) / 2);
+/* 响应式布局 - 手机 */
+@media screen and (max-width: 768px) {
+  .header {
+    padding: 0 10px;
   }
 
-  .logo {
-    margin: 0 2rem 0 0;
+  .logo span {
+    font-size: 20px;
   }
 
-  header .wrapper {
-    display: flex;
-    place-items: flex-start;
-    flex-wrap: wrap;
+  .nav-menu {
+    margin: 0 10px;
   }
 
-  nav {
-    text-align: left;
-    margin-left: -1rem;
-    font-size: 1rem;
+  .user-actions {
+    gap: 5px;
+  }
 
-    padding: 1rem 0;
-    margin-top: 1rem;
+  .main-content {
+    padding: 10px;
   }
 }
 </style>
+

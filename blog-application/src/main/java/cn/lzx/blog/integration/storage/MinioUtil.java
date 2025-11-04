@@ -13,6 +13,10 @@ import io.minio.BucketExistsArgs;
 import io.minio.MakeBucketArgs;
 import io.minio.MinioClient;
 import io.minio.PutObjectArgs;
+import io.minio.RemoveObjectArgs;
+import io.minio.SetBucketPolicyArgs;
+import io.minio.StatObjectArgs;
+import jakarta.annotation.PostConstruct;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 
@@ -48,19 +52,54 @@ public class MinioUtil {
     private MinioClient minioClient;
 
     /**
-     * 判断bucket是否存在，不存在则创建
+     * 初始化：确保bucket存在并设置为公开访问
      */
-    public void existBucket(String name) {
+    @PostConstruct
+    public void init() {
         try {
-            boolean exists = minioClient.bucketExists(BucketExistsArgs.builder().bucket(name).build());
+            String bucketName = minioProperties.getBucketName();
+
+            // 1. 检查并创建 bucket
+            boolean exists = minioClient.bucketExists(BucketExistsArgs.builder().bucket(bucketName).build());
             if (!exists) {
-                minioClient.makeBucket(MakeBucketArgs.builder().bucket(name).build());
-                log.info("MinIO bucket created: {}", name);
+                minioClient.makeBucket(MakeBucketArgs.builder().bucket(bucketName).build());
+                log.info("MinIO bucket created: {}", bucketName);
             }
+
+            // 2. 设置 bucket 为公开读取（允许匿名访问）
+            String policy = getPolicyJson(bucketName);
+            minioClient.setBucketPolicy(
+                SetBucketPolicyArgs.builder()
+                    .bucket(bucketName)
+                    .config(policy)
+                    .build()
+            );
+            log.info("MinIO bucket policy set to public read: {}", bucketName);
         } catch (Exception e) {
-            log.error("Failed to check or create bucket: {}", name, e);
-            throw new RuntimeException("MinIO bucket操作失败: " + name, e);
+            log.error("Failed to initialize MinIO bucket", e);
+            throw new RuntimeException("MinIO 初始化失败", e);
         }
+    }
+
+    /**
+     * 生成公开读取的 bucket 策略
+     */
+    private String getPolicyJson(String bucketName) {
+        return """
+            {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Principal": {
+                    "AWS": ["*"]
+                  },
+                  "Action": ["s3:GetObject"],
+                  "Resource": ["arn:aws:s3:::%s/*"]
+                }
+              ]
+            }
+            """.formatted(bucketName);
     }
 
     /**
@@ -111,6 +150,55 @@ public class MinioUtil {
      */
     private static String getContentType(String filenameExtension) {
         return CONTENT_TYPE_MAP.getOrDefault(filenameExtension.toLowerCase(), "application/octet-stream");
+    }
+
+    /**
+     * 检查文件是否存在
+     *
+     * @param fileName 文件名
+     * @return 文件是否存在
+     */
+    public boolean fileExists(String fileName) {
+        try {
+            minioClient.statObject(StatObjectArgs.builder()
+                    .bucket(minioProperties.getBucketName())
+                    .object(fileName)
+                    .build());
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    /**
+     * 删除文件
+     *
+     * @param fileName 文件名
+     */
+    public void deleteFile(String fileName) {
+        if (fileName == null || fileName.trim().isEmpty()) {
+            log.warn("文件名为空，跳过删除操作");
+            return;
+        }
+
+        try {
+            // 检查文件是否存在
+            if (!fileExists(fileName)) {
+                log.info("文件不存在，无需删除: {}", fileName);
+                return;
+            }
+
+            // 删除文件
+            minioClient.removeObject(RemoveObjectArgs.builder()
+                    .bucket(minioProperties.getBucketName())
+                    .object(fileName)
+                    .build());
+
+            log.info("文件删除成功: {}", fileName);
+        } catch (Exception e) {
+            log.error("文件删除失败: {}", fileName, e);
+            // 删除失败不抛异常，避免影响主流程
+        }
     }
 
 }
