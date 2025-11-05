@@ -46,8 +46,9 @@ const request: AxiosInstance = axios.create({
 // 请求拦截器
 request.interceptors.request.use(
   (config) => {
-    // 从localStorage获取token
-    const token = localStorage.getItem('token')
+    // 从userStore获取token
+    const userStore = useUserStore()
+    const token = userStore.token
     if (token) {
       config.headers.Authorization = `Bearer ${token}`
     }
@@ -62,6 +63,14 @@ request.interceptors.request.use(
 request.interceptors.response.use(
   (response: AxiosResponse) => {
     const { code, data, message } = response.data
+
+    // **重要：检查响应头中的自动续期Token（后端主动续期）**
+    const newToken = response.headers['x-new-token']
+    if (newToken) {
+      const userStore = useUserStore()
+      userStore.updateToken(newToken)
+      console.log('Token已自动续期')
+    }
 
     // 成功
     if (code === 200 || code === 0) {

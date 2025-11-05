@@ -8,9 +8,17 @@ const userStore = useUserStore()
 
 // 初始化时加载用户信息
 onMounted(async () => {
-  // 如果有 token 但没有用户信息，自动加载
-  if (userStore.token && !userStore.userInfo) {
-    await userStore.getUserInfo()
+  // 如果有 token 但没有用户信息，尝试自动加载
+  // Pinia持久化插件会自动从localStorage恢复token和userId
+  if (userStore.isLoggedIn && !userStore.userInfo) {
+    try {
+      await userStore.getUserInfo()
+      console.log('用户信息加载成功')
+    } catch (error) {
+      console.error('用户信息加载失败，可能token已过期')
+      // 如果获取用户信息失败，说明token可能已失效
+      // 401错误会被axios拦截器处理，自动尝试刷新token
+    }
   }
 })
 
@@ -35,7 +43,13 @@ const handleLogout = async () => {
           <el-menu-item index="1">
             <RouterLink to="/">首页</RouterLink>
           </el-menu-item>
-          <el-menu-item index="2" v-if="userStore.isLoggedIn">
+          <el-menu-item index="2">
+            <RouterLink to="/articles">文章</RouterLink>
+          </el-menu-item>
+          <el-menu-item index="3" v-if="userStore.isLoggedIn">
+            <RouterLink to="/my-articles">我的文章</RouterLink>
+          </el-menu-item>
+          <el-menu-item index="4" v-if="userStore.isLoggedIn">
             <RouterLink to="/profile">个人中心</RouterLink>
           </el-menu-item>
         </el-menu>

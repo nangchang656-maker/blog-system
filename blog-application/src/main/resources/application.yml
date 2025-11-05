@@ -109,14 +109,14 @@ minio:
   secret-key: minioadmin
   bucket-name: blog-files
 
-# RocketMQ 配置
-rocketmq:
-  name-server: localhost:9876
-  producer:
-    group: blog-producer-group
-    send-message-timeout: 3000
-    retry-times-when-send-failed: 2
-    retry-times-when-send-async-failed: 2
+# RocketMQ 配置 (暂时禁用)
+#rocketmq:
+#  name-server: localhost:9876
+#  producer:
+#    group: blog-producer-group
+#    send-message-timeout: 3000
+#    retry-times-when-send-failed: 2
+#    retry-times-when-send-async-failed: 2
 
 # 智普AI 配置 (LangChain4j)
 zhipu:

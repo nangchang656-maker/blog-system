@@ -5,24 +5,21 @@ import cn.lzx.blog.dto.PasswordUpdateDTO;
 import cn.lzx.blog.dto.UserLoginDTO;
 import cn.lzx.blog.dto.UserRegisterDTO;
 import cn.lzx.blog.dto.UserUpdateDTO;
-import cn.lzx.blog.integration.storage.MinioUtil;
+import cn.lzx.blog.service.FileUploadService;
 import cn.lzx.blog.service.UserService;
 import cn.lzx.blog.vo.UserInfoVO;
 import cn.lzx.blog.vo.UserLoginVO;
-import cn.lzx.constants.SecurityConstants;
 import cn.lzx.exception.BusinessException;
 import cn.lzx.service.TokenService;
 import cn.lzx.utils.R;
 import cn.lzx.utils.SecurityContextUtil;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.util.StringUtils;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -42,7 +39,7 @@ import java.util.Map;
 public class UserController {
 
     private final UserService userService;
-    private final MinioUtil minioUtil;
+    private final FileUploadService fileUploadService;
     private final TokenService tokenService;
 
     /**
@@ -88,7 +85,7 @@ public class UserController {
         Map<String, String> tokenMap = tokenService.refreshAccessToken(request.getUserId(), request.getRefreshToken());
 
         if (tokenMap == null) {
-            throw new BusinessException("RefreshToken无效或已过期，请重新登录");
+            throw new BusinessException("RefreshToken无效或已过期,请重新登录");
         }
 
         return R.success(tokenMap);
@@ -121,11 +118,11 @@ public class UserController {
      */
     @Operation(summary = "修改密码")
     @PutMapping("/password")
-    public R updatePassword(@RequestBody @Valid PasswordUpdateDTO dto, HttpServletRequest request) {
+    public R updatePassword(@RequestBody @Valid PasswordUpdateDTO dto) {
         Long userId = SecurityContextUtil.getCurrentUserId();
-        String token = extractToken(request);
+        String token = SecurityContextUtil.getToken();
         userService.updatePassword(userId, dto, token);
-        return R.success("密码修改成功，请重新登录");
+        return R.success("密码修改成功,请重新登录");
     }
 
     /**
@@ -133,9 +130,9 @@ public class UserController {
      */
     @Operation(summary = "退出登录")
     @PostMapping("/logout")
-    public R logout(HttpServletRequest request) {
+    public R logout() {
         Long userId = SecurityContextUtil.getCurrentUserId();
-        String token = extractToken(request);
+        String token = SecurityContextUtil.getToken();
         userService.logout(userId, token);
         return R.success("退出登录成功");
     }
@@ -147,88 +144,12 @@ public class UserController {
     @PostMapping("/avatar/upload")
     public R uploadAvatar(@RequestParam("file") MultipartFile file) {
         Long userId = SecurityContextUtil.getCurrentUserId();
+        String fileUrl = fileUploadService.uploadAvatar(file, userId);
 
-        // 1. 校验文件
-        if (file == null || file.isEmpty()) {
-            throw new BusinessException("文件不能为空");
-        }
+        Map<String, String> result = new HashMap<>();
+        result.put("url", fileUrl);
 
-        // 2. 校验文件类型
-        String originalFilename = file.getOriginalFilename();
-        if (originalFilename == null || !isImageFile(originalFilename)) {
-            throw new BusinessException("只支持上传 jpg、jpeg、png 格式的图片");
-        }
-
-        // 3. 校验文件大小（2MB）
-        long maxSize = 2 * 1024 * 1024;
-        if (file.getSize() > maxSize) {
-            throw new BusinessException("图片大小不能超过 2MB");
-        }
-
-        try {
-            // 4. 生成固定文件名：avatars/user_{userId}_avatar.{ext}
-            String fileExtension = originalFilename.substring(originalFilename.lastIndexOf("."));
-            String fileName = String.format("avatars/user_%d_avatar%s", userId, fileExtension);
-
-            // 5. 删除旧头像（如果存在不同格式的旧文件）
-            deleteOldAvatars(userId, fileExtension);
-
-            // 6. 上传到 MinIO（覆盖式上传）
-            String fileUrl = minioUtil.upload(file.getInputStream(), fileName);
-
-            // 7. 返回文件 URL
-            Map<String, String> result = new HashMap<>();
-            result.put("url", fileUrl);
-
-            log.info("用户头像上传成功: userId={}, url={}", userId, fileUrl);
-            return R.success(result);
-        } catch (Exception e) {
-            log.error("头像上传失败: userId={}", userId, e);
-            throw new BusinessException("头像上传失败，请重试");
-        }
-    }
-
-    /**
-     * 删除用户的旧头像文件（处理不同格式的情况）
-     */
-    private void deleteOldAvatars(Long userId, String currentExtension) {
-        // 常见图片格式
-        String[] extensions = {".jpg", ".jpeg", ".png"};
-
-        for (String ext : extensions) {
-            // 跳过当前要上传的格式（MinIO会自动覆盖）
-            if (ext.equalsIgnoreCase(currentExtension)) {
-                continue;
-            }
-
-            // 删除其他格式的旧头像
-            String oldFileName = String.format("avatars/user_%d_avatar%s", userId, ext);
-            minioUtil.deleteFile(oldFileName);
-        }
-    }
-
-    /**
-     * 判断是否为图片文件
-     */
-    private boolean isImageFile(String filename) {
-        if (filename == null) {
-            return false;
-        }
-        String lowerCaseFilename = filename.toLowerCase();
-        return lowerCaseFilename.endsWith(".jpg")
-            || lowerCaseFilename.endsWith(".jpeg")
-            || lowerCaseFilename.endsWith(".png");
-    }
-
-    /**
-     * 从请求头中提取Token
-     */
-    private String extractToken(HttpServletRequest request) {
-        String bearerToken = request.getHeader(SecurityConstants.TOKEN_HEADER);
-        if (StringUtils.hasText(bearerToken) && bearerToken.startsWith(SecurityConstants.TOKEN_PREFIX)) {
-            return bearerToken.substring(SecurityConstants.TOKEN_PREFIX.length());
-        }
-        return null;
+        return R.success(result);
     }
 
     /**

@@ -4,10 +4,16 @@ import cn.lzx.blog.dto.PasswordUpdateDTO;
 import cn.lzx.blog.dto.UserLoginDTO;
 import cn.lzx.blog.dto.UserRegisterDTO;
 import cn.lzx.blog.dto.UserUpdateDTO;
+import cn.lzx.blog.mapper.ArticleMapper;
+import cn.lzx.blog.mapper.CollectMapper;
+import cn.lzx.blog.mapper.FollowMapper;
 import cn.lzx.blog.mapper.UserMapper;
 import cn.lzx.blog.service.UserService;
 import cn.lzx.blog.vo.UserInfoVO;
 import cn.lzx.blog.vo.UserLoginVO;
+import cn.lzx.entity.Article;
+import cn.lzx.entity.Collect;
+import cn.lzx.entity.Follow;
 import cn.lzx.entity.User;
 import cn.lzx.enums.RedisKeyEnum;
 import cn.lzx.exception.BusinessException;
@@ -22,6 +28,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
@@ -35,6 +42,9 @@ import java.util.concurrent.TimeUnit;
 public class UserServiceImpl implements UserService {
 
     private final UserMapper userMapper;
+    private final ArticleMapper articleMapper;
+    private final CollectMapper collectMapper;
+    private final FollowMapper followMapper;
     private final RedisUtil redisUtil;
     private final EmailSendUtil emailSendUtil;
     private final PasswordEncoder passwordEncoder;
@@ -247,6 +257,36 @@ public class UserServiceImpl implements UserService {
      * 将User实体转换为UserInfoVO
      */
     private UserInfoVO convertToUserInfoVO(User user) {
+        // 1. 统计文章数（已发布的文章）
+        LambdaQueryWrapper<Article> articleWrapper = new LambdaQueryWrapper<>();
+        articleWrapper.eq(Article::getUserId, user.getId())
+                .eq(Article::getStatus, 1); // 只统计已发布的文章
+        Long articleCount = articleMapper.selectCount(articleWrapper);
+
+        // 2. 统计获赞数（用户所有文章的点赞数总和）
+        LambdaQueryWrapper<Article> likeWrapper = new LambdaQueryWrapper<>();
+        likeWrapper.eq(Article::getUserId, user.getId())
+                .eq(Article::getStatus, 1);
+        List<Article> articles = articleMapper.selectList(likeWrapper);
+        Long likeCount = articles.stream()
+                .mapToLong(article -> article.getLikeCount() != null ? article.getLikeCount() : 0)
+                .sum();
+
+        // 3. 统计收藏数（用户收藏的文章数量）
+        LambdaQueryWrapper<Collect> collectWrapper = new LambdaQueryWrapper<>();
+        collectWrapper.eq(Collect::getUserId, user.getId());
+        Long collectCount = collectMapper.selectCount(collectWrapper);
+
+        // 4. 统计关注数
+        LambdaQueryWrapper<Follow> followWrapper = new LambdaQueryWrapper<>();
+        followWrapper.eq(Follow::getUserId, user.getId());
+        Long followCount = followMapper.selectCount(followWrapper);
+
+        // 5. 统计粉丝数
+        LambdaQueryWrapper<Follow> fansWrapper = new LambdaQueryWrapper<>();
+        fansWrapper.eq(Follow::getFollowUserId, user.getId());
+        Long fansCount = followMapper.selectCount(fansWrapper);
+
         return UserInfoVO.builder()
                 .id(user.getId())
                 .username(user.getUsername())
@@ -257,6 +297,11 @@ public class UserServiceImpl implements UserService {
                 .bio(user.getIntro()) // 数据库的intro对应VO的bio
                 .createTime(user.getCreateTime())
                 .updateTime(user.getUpdateTime())
+                .articleCount(articleCount)
+                .likeCount(likeCount)
+                .collectCount(collectCount)
+                .followCount(followCount)
+                .fansCount(fansCount)
                 .build();
     }
 }

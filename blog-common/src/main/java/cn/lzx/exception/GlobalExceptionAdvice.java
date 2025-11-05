@@ -34,7 +34,7 @@ public class GlobalExceptionAdvice {
      */
     @ExceptionHandler(CommonException.class)
     public R handleCommonException(CommonException e) {
-        log.error("业务异常: {}", e.getMsg(), e);
+        log.warn("业务异常: {}", e.getMsg());
         return R.fail(e.getCode(), e.getMsg());
     }
 
@@ -52,7 +52,7 @@ public class GlobalExceptionAdvice {
      */
     @ExceptionHandler(JwtException.class)
     public R handleJwtException(JwtException e) {
-        log.error("JWT异常: {}", e.getMsg(), e);
+        log.warn("JWT异常: {}", e.getMsg());
         return R.fail(e.getCode(), e.getMsg());
     }
 
@@ -140,8 +140,6 @@ public class GlobalExceptionAdvice {
      */
     @ExceptionHandler(MultipartException.class)
     public R handleMultipartException(MultipartException e) {
-        log.error("文件上传解析失败: {}", e.getMessage());
-
         // 判断是否是文件大小超限引起的
         if (e.getCause() instanceof MaxUploadSizeExceededException) {
             return handleMaxUploadSizeExceededException((MaxUploadSizeExceededException) e.getCause());
@@ -151,14 +149,18 @@ public class GlobalExceptionAdvice {
         String message = e.getMessage();
         if (message != null) {
             if (message.contains("size")) {
+                log.warn("文件上传失败: 文件过大");
                 return R.fail("上传文件过大，请压缩后重试");
             } else if (message.contains("corrupt") || message.contains("invalid")) {
+                log.warn("文件上传失败: 文件损坏或格式不正确");
                 return R.fail("文件已损坏或格式不正确，请重新选择");
             } else if (message.contains("permission") || message.contains("denied")) {
+                log.error("文件上传失败: 服务器权限不足");
                 return R.fail("服务器文件上传权限不足，请联系管理员");
             }
         }
 
+        log.warn("文件上传失败: {}", e.getMessage());
         return R.fail("文件上传失败，请检查文件是否正确");
     }
 
@@ -176,7 +178,7 @@ public class GlobalExceptionAdvice {
      */
     @ExceptionHandler(NullPointerException.class)
     public R handleNullPointerException(NullPointerException e) {
-        log.error("空指针异常", e);
+        log.error("空指针异常: {}", e.getMessage() != null ? e.getMessage() : "未知位置", e);
         return R.fail("系统内部错误");
     }
 
@@ -211,7 +213,7 @@ public class GlobalExceptionAdvice {
      */
     @ExceptionHandler(Exception.class)
     public R handleException(Exception e) {
-        log.error("未知异常", e);
+        log.error("系统异常: {} - {}", e.getClass().getSimpleName(), e.getMessage(), e);
         return R.fail("系统异常，请联系管理员");
     }
 }

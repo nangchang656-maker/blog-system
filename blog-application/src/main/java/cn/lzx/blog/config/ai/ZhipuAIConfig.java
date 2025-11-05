@@ -7,6 +7,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+import java.time.Duration;
+
 /**
  * 智普AI配置类 - 使用LangChain4j集成
  *
@@ -33,6 +35,10 @@ public class ZhipuAIConfig {
                 .model(properties.getModel())
                 .temperature(properties.getTemperature())
                 .topP(properties.getTopP())
+                .callTimeout(Duration.ofMillis(properties.getTimeout()))
+                .connectTimeout(Duration.ofMillis(properties.getTimeout()))
+                .readTimeout(Duration.ofMillis(properties.getTimeout()))
+                .writeTimeout(Duration.ofMillis(properties.getTimeout()))
                 .logRequests(true)
                 .logResponses(true)
                 .build();

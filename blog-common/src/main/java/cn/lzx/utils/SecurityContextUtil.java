@@ -1,6 +1,12 @@
 package cn.lzx.utils;
 
+import cn.lzx.constants.SecurityConstants;
 import org.springframework.security.core.Authentication;
+import org.springframework.util.StringUtils;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
+
+import jakarta.servlet.http.HttpServletRequest;
 
 /**
  * 安全上下文工具类
@@ -14,7 +20,7 @@ public class SecurityContextUtil {
     /**
      * 获取当前登录用户ID
      *
-     * @return 用户ID，未登录返回null
+     * @return 用户ID,未登录返回null
      */
     public static Long getCurrentUserId() {
         Authentication authentication = org.springframework.security.core.context.SecurityContextHolder
@@ -46,5 +52,25 @@ public class SecurityContextUtil {
     public static boolean isAuthenticated() {
         Authentication authentication = getAuthentication();
         return authentication != null && authentication.isAuthenticated();
+    }
+
+    /**
+     * 从当前请求中获取Token
+     *
+     * @return Token字符串,不包含Bearer前缀
+     */
+    public static String getToken() {
+        ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+        if (attributes == null) {
+            return null;
+        }
+
+        HttpServletRequest request = attributes.getRequest();
+        String bearerToken = request.getHeader(SecurityConstants.TOKEN_HEADER);
+
+        if (StringUtils.hasText(bearerToken) && bearerToken.startsWith(SecurityConstants.TOKEN_PREFIX)) {
+            return bearerToken.substring(SecurityConstants.TOKEN_PREFIX.length());
+        }
+        return null;
     }
 }

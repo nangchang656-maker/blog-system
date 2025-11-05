@@ -33,4 +33,29 @@ public class UserInfoVO {
     private LocalDateTime createTime;
 
     private LocalDateTime updateTime;
+
+    /**
+     * 文章数
+     */
+    private Long articleCount;
+
+    /**
+     * 获赞数（用户所有文章的点赞数总和）
+     */
+    private Long likeCount;
+
+    /**
+     * 收藏数（用户收藏的文章数量）
+     */
+    private Long collectCount;
+
+    /**
+     * 关注数
+     */
+    private Long followCount;
+
+    /**
+     * 粉丝数
+     */
+    private Long fansCount;
 }

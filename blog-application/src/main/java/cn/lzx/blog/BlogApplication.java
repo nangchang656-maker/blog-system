@@ -19,7 +19,9 @@ import org.springframework.context.annotation.ComponentScan;
 @SpringBootApplication(exclude = {
     ElasticsearchDataAutoConfiguration.class,
     ElasticsearchRepositoriesAutoConfiguration.class,
-    org.springframework.boot.autoconfigure.elasticsearch.ElasticsearchRestClientAutoConfiguration.class
+    org.springframework.boot.autoconfigure.elasticsearch.ElasticsearchRestClientAutoConfiguration.class,
+    // 暂时排除RocketMQ自动配置，待实际使用时再启用
+    org.apache.rocketmq.spring.autoconfigure.RocketMQAutoConfiguration.class
 })
 @ComponentScan(basePackages = {"cn.lzx.blog", "cn.lzx"})
 @MapperScan("cn.lzx.blog.mapper")

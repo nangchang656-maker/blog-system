@@ -2,6 +2,7 @@ package cn.lzx.blog.integration.mq;
 
 import lombok.extern.slf4j.Slf4j;
 import org.apache.rocketmq.spring.core.RocketMQTemplate;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.messaging.Message;
 import org.springframework.messaging.support.MessageBuilder;
 import org.springframework.stereotype.Component;
@@ -10,9 +11,11 @@ import jakarta.annotation.Resource;
 
 /**
  * RocketMQ 消息生产者
+ * 只有在 RocketMQTemplate Bean 存在时才会创建
  */
 @Slf4j
 @Component
+@ConditionalOnBean(RocketMQTemplate.class)
 public class RocketMQProducer {
 
     @Resource
