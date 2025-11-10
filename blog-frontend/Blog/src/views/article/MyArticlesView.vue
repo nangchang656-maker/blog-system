@@ -42,6 +42,7 @@ import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getMyArticles, deleteArticle, type ArticleListItem } from '@/api/article'
 import ArticleTable from './components/ArticleTable.vue'
+import { ARTICLE_STATUS_DRAFT, ARTICLE_STATUS_PUBLISHED } from '@/constants/article'
 
 const router = useRouter()
 
@@ -62,7 +63,7 @@ const draftPage = ref({ page: 1, size: 10 })
 const loadPublishedArticles = async (page = 1, size = 10) => {
   loading.value = true
   try {
-    const res = await getMyArticles({ page, size, status: 1 })
+    const res = await getMyArticles({ page, size, status: ARTICLE_STATUS_PUBLISHED })
     publishedArticles.value = res.records
     publishedTotal.value = res.total
     publishedPage.value = { page, size }
@@ -77,7 +78,7 @@ const loadPublishedArticles = async (page = 1, size = 10) => {
 const loadDraftArticles = async (page = 1, size = 10) => {
   loading.value = true
   try {
-    const res = await getMyArticles({ page, size, status: 0 })
+    const res = await getMyArticles({ page, size, status: ARTICLE_STATUS_DRAFT })
     draftArticles.value = res.records
     draftTotal.value = res.total
     draftPage.value = { page, size }
@@ -92,7 +93,7 @@ const loadDraftArticles = async (page = 1, size = 10) => {
 const handleTabChange = (name: string) => {
   if (name === 'published') {
     loadPublishedArticles()
-  } else {
+  } else if (name === 'draft') {
     loadDraftArticles()
   }
 }
@@ -122,7 +123,7 @@ const handleDelete = async (id: number) => {
     // 重新加载列表
     if (activeTab.value === 'published') {
       loadPublishedArticles(publishedPage.value.page, publishedPage.value.size)
-    } else {
+    } else if (activeTab.value === 'draft') {
       loadDraftArticles(draftPage.value.page, draftPage.value.size)
     }
   } catch (error: any) {

@@ -9,6 +9,7 @@ import cn.lzx.blog.service.TagService;
 import cn.lzx.blog.vo.ArticleDetailVO;
 import cn.lzx.blog.vo.ArticleListVO;
 import cn.lzx.blog.vo.TagVO;
+import cn.lzx.constants.CommonConstants;
 import cn.lzx.entity.*;
 import cn.lzx.exception.CommonException;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
@@ -131,6 +132,11 @@ public class ArticleServiceImpl implements ArticleService {
             throw new CommonException("无权限编辑此文章");
         }
 
+        // 2.1 验证文章状态
+        if (article.getStatus() == CommonConstants.ARTICLE_STATUS_BLOCKED) {
+            throw new CommonException("已屏蔽文章不能编辑");
+        }
+        
         // 3. 处理分类（优先使用ID，如果ID为空则使用名称创建或获取）
         Long categoryId;
         if (dto.getCategoryId() != null) {
@@ -270,23 +276,30 @@ public class ArticleServiceImpl implements ArticleService {
         }
 
         // 2. 草稿文章权限判断：只有作者本人可以查看草稿
-        if (article.getStatus() == 0) {
+        if (article.getStatus() == CommonConstants.ARTICLE_STATUS_DRAFT) {
             if (userId == null || !article.getUserId().equals(userId)) {
                 throw new CommonException("无权限查看此文章");
             }
         }
 
-        // 3. 增加浏览量（草稿不增加浏览量）
-        if (article.getStatus() == 1) {
+        // 3. 屏蔽文章权限判断：被屏蔽的文章不对外显示（作者本人和管理员可以查看）
+        if (article.getStatus() == CommonConstants.ARTICLE_STATUS_BLOCKED) {
+            if (userId == null || (!article.getUserId().equals(userId) && !cn.lzx.constants.AdminConstants.isAdmin(userId))) {
+                throw new CommonException("文章不存在或已被屏蔽");
+            }
+        }
+
+        // 4. 增加浏览量（草稿和屏蔽文章不增加浏览量）
+        if (article.getStatus() == CommonConstants.ARTICLE_STATUS_PUBLISHED) {
             // 异步增加浏览量（这里简化处理，实际应该使用消息队列异步处理）
             articleMapper.incrementViewCount(articleId);
             article.setViewCount(article.getViewCount() + 1);
         }
 
-        // 4. 查询文章作者信息
+        // 5. 查询文章作者信息
         User author = userMapper.selectById(article.getUserId());
 
-        // 5. 查询文章标签
+        // 6. 查询文章标签
         List<Tag> tags = tagMapper.selectByArticleId(articleId);
         List<TagVO> tagVOList = tags.stream()
                 .map(tag -> TagVO.builder()
@@ -295,10 +308,10 @@ public class ArticleServiceImpl implements ArticleService {
                         .build())
                 .collect(Collectors.toList());
 
-        // 6. 查询分类
+        // 7. 查询分类
         Category category = categoryMapper.selectById(article.getCategoryId());
 
-        // 7. 查询当前用户是否点赞和收藏（如果用户已登录）
+        // 8. 查询当前用户是否点赞和收藏（如果用户已登录）
         Boolean isLiked = false;
         Boolean isCollected = false;
         if (userId != null) {
@@ -307,16 +320,22 @@ public class ArticleServiceImpl implements ArticleService {
             likeWrapper.eq(LikeRecord::getUserId, userId)
                     .eq(LikeRecord::getTargetId, articleId)
                     .eq(LikeRecord::getType, 1); // 1表示文章点赞
-            isLiked = likeRecordMapper.selectCount(likeWrapper) > 0;
+            long likeCount = likeRecordMapper.selectCount(likeWrapper);
+            isLiked = likeCount > 0;
+            log.debug("查询点赞状态 - 用户ID: {}, 文章ID: {}, 点赞记录数: {}, isLiked: {}", userId, articleId, likeCount, isLiked);
 
             // 查询是否收藏
             LambdaQueryWrapper<Collect> collectWrapper = new LambdaQueryWrapper<>();
             collectWrapper.eq(Collect::getUserId, userId)
                     .eq(Collect::getArticleId, articleId);
-            isCollected = collectMapper.selectCount(collectWrapper) > 0;
+            long collectCount = collectMapper.selectCount(collectWrapper);
+            isCollected = collectCount > 0;
+            log.debug("查询收藏状态 - 用户ID: {}, 文章ID: {}, 收藏记录数: {}, isCollected: {}", userId, articleId, collectCount, isCollected);
+        } else {
+            log.debug("用户未登录，不查询点赞和收藏状态 - 文章ID: {}", articleId);
         }
 
-        // 8. 构建ArticleDetailVO
+        // 9. 构建ArticleDetailVO
         return ArticleDetailVO.builder()
                 .id(article.getId())
                 .title(article.getTitle())
@@ -349,9 +368,17 @@ public class ArticleServiceImpl implements ArticleService {
         LambdaQueryWrapper<Article> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(Article::getUserId, userId);
 
-        // 状态筛选（草稿或已发布）
+        // 状态筛选（草稿、已发布或已屏蔽）
+        // 注意：作者应该能看到自己所有状态的文章，包括被屏蔽的
         if (queryDTO.getStatus() != null) {
-            wrapper.eq(Article::getStatus, queryDTO.getStatus());
+            if (queryDTO.getStatus() == CommonConstants.ARTICLE_STATUS_PUBLISHED) {
+                // 查询"已发布"时，包括已发布和已屏蔽的文章（因为被屏蔽的文章原本是已发布的）
+                wrapper.and(w -> w.eq(Article::getStatus, CommonConstants.ARTICLE_STATUS_PUBLISHED)
+                        .or().eq(Article::getStatus, CommonConstants.ARTICLE_STATUS_BLOCKED));
+            } else {
+                // 其他状态直接查询
+                wrapper.eq(Article::getStatus, queryDTO.getStatus());
+            }
         }
 
         // 排序（默认按创建时间倒序）
@@ -459,6 +486,7 @@ public class ArticleServiceImpl implements ArticleService {
                             .viewCount(article.getViewCount())
                             .likeCount(article.getLikeCount())
                             .commentCount(article.getCommentCount())
+                            .status(article.getStatus())
                             .createTime(article.getCreateTime())
                             .updateTime(article.getUpdateTime())
                             .build();
@@ -502,5 +530,15 @@ public class ArticleServiceImpl implements ArticleService {
                                 Collectors.toList()
                         )
                 ));
+    }
+
+    @Override
+    public void incrementCommentCount(Long articleId) {
+        articleMapper.incrementCommentCount(articleId);
+    }
+
+    @Override
+    public void decrementCommentCount(Long articleId) {
+        articleMapper.decrementCommentCount(articleId);
     }
 }

@@ -6,7 +6,7 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>3.2.11</version>
+        <version>3.2.12</version>
         <relativePath /> <!-- lookup parent from repository -->
     </parent>
 
@@ -40,7 +40,7 @@
         <maven.compiler.target>17</maven.compiler.target>
 
         <!-- Spring Boot 版本 -->
-        <spring-boot.version>3.2.11</spring-boot.version>
+        <spring-boot.version>3.2.12</spring-boot.version>
 
         <!-- 第三方依赖版本管理 -->
         <mysql.version>8.0.33</mysql.version>

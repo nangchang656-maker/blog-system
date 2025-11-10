@@ -1,7 +1,7 @@
 package cn.lzx.config;
 
 import cn.lzx.annotation.NoLogin;
-import org.springframework.context.ApplicationContext;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.security.web.util.matcher.RequestMatcher;
 import org.springframework.stereotype.Component;
 import org.springframework.web.method.HandlerMethod;
@@ -24,9 +24,8 @@ public class NoLoginRequestMatcher implements RequestMatcher {
 
     private final Set<String> noLoginPaths = new HashSet<>();
 
-    public NoLoginRequestMatcher(ApplicationContext applicationContext) {
-        // 获取 RequestMappingHandlerMapping
-        RequestMappingHandlerMapping mapping = applicationContext.getBean(RequestMappingHandlerMapping.class);
+    public NoLoginRequestMatcher(@Qualifier("requestMappingHandlerMapping") RequestMappingHandlerMapping mapping) {
+        // 直接注入 RequestMappingHandlerMapping，使用 @Qualifier 指定 bean 名称
 
         // 获取所有的映射关系
         Map<RequestMappingInfo, HandlerMethod> handlerMethods = mapping.getHandlerMethods();

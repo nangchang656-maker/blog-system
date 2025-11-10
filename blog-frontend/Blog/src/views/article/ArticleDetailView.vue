@@ -51,32 +51,32 @@
         <el-divider />
         <div class="article-actions">
           <el-button
-            :type="article.isLiked ? 'primary' : 'default'"
+            :type="article.isLiked === true ? 'primary' : 'default'"
             :icon="Star"
             @click="handleLike"
           >
-            {{ article.isLiked ? '已点赞' : '点赞' }} ({{ article.likeCount }})
+            {{ article.isLiked === true ? '已点赞' : '点赞' }} ({{ article.likeCount }})
           </el-button>
           <el-button
-            :type="article.isCollected ? 'warning' : 'default'"
+            :type="article.isCollected === true ? 'warning' : 'default'"
             :icon="Collection"
             @click="handleCollect"
           >
-            {{ article.isCollected ? '已收藏' : '收藏' }}
+            {{ article.isCollected === true ? '已收藏' : '收藏' }}
           </el-button>
           <el-button :icon="Share" @click="handleShare">分享</el-button>
         </div>
       </template>
     </el-card>
 
-    <!-- 评论区(待实现) -->
-    <el-card class="comment-section" style="margin-top: 20px">
+    <!-- 评论区 -->
+    <el-card class="comment-section" style="margin-top: 20px" v-if="article">
       <template #header>
         <div class="card-header">
-          <span>评论 ({{ article?.commentCount || 0 }})</span>
+          <span>评论 ({{ article.commentCount || 0 }})</span>
         </div>
       </template>
-      <el-empty description="评论功能待开发" />
+      <CommentSection :article-id="article.id" ref="commentSectionRef" @comment-added="handleCommentAdded" />
     </el-card>
   </div>
 </template>
@@ -97,10 +97,14 @@ import {
   uncollectArticle,
   type ArticleDetail
 } from '@/api/article'
+import { useUserStore } from '@/stores/user'
+import CommentSection from '@/components/CommentSection.vue'
 
 const route = useRoute()
+const userStore = useUserStore()
 const article = ref<ArticleDetail | null>(null)
 const loading = ref(false)
+const commentSectionRef = ref<InstanceType<typeof CommentSection> | null>(null)
 
 // Markdown渲染
 const md = new MarkdownIt({
@@ -130,6 +134,14 @@ const loadArticle = async () => {
   try {
     const res = await getArticleDetail(id)
     article.value = res
+    // 调试：打印文章详情，检查点赞和收藏状态
+    console.log('文章详情:', res)
+    console.log('是否已点赞:', res.isLiked)
+    console.log('是否已收藏:', res.isCollected)
+    // 刷新评论列表
+    if (commentSectionRef.value) {
+      commentSectionRef.value.loadComments()
+    }
   } catch (error) {
     ElMessage.error('加载文章失败')
   } finally {
@@ -142,7 +154,7 @@ const handleLike = async () => {
   if (!article.value) return
 
   try {
-    if (article.value.isLiked) {
+    if (article.value.isLiked === true) {
       await unlikeArticle(article.value.id)
       article.value.isLiked = false
       article.value.likeCount--
@@ -163,15 +175,23 @@ const handleCollect = async () => {
   if (!article.value) return
 
   try {
-    if (article.value.isCollected) {
+    if (article.value.isCollected === true) {
       await uncollectArticle(article.value.id)
       article.value.isCollected = false
       article.value.collectCount = (article.value.collectCount || 1) - 1
+      // 同步更新用户信息中的收藏数
+      if (userStore.userInfo) {
+        userStore.userInfo.collectCount = (userStore.userInfo.collectCount || 1) - 1
+      }
       ElMessage.success('取消收藏')
     } else {
       await collectArticle(article.value.id)
       article.value.isCollected = true
       article.value.collectCount = (article.value.collectCount || 0) + 1
+      // 同步更新用户信息中的收藏数
+      if (userStore.userInfo) {
+        userStore.userInfo.collectCount = (userStore.userInfo.collectCount || 0) + 1
+      }
       ElMessage.success('收藏成功')
     }
   } catch (error) {
@@ -186,6 +206,13 @@ const handleShare = () => {
   navigator.clipboard.writeText(url).then(() => {
     ElMessage.success('链接已复制到剪贴板')
   })
+}
+
+// 处理评论添加
+const handleCommentAdded = () => {
+  if (article.value) {
+    article.value.commentCount = (article.value.commentCount || 0) + 1
+  }
 }
 
 // 格式化时间

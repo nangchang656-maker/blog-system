@@ -113,12 +113,14 @@ public class ArticleController {
         Long userId = null;
         try {
             userId = SecurityContextUtil.getCurrentUserId();
+            log.debug("获取文章详情，用户ID: {}, 文章ID: {}", userId, id);
         } catch (Exception e) {
             // 未登录，忽略异常
             log.debug("用户未登录，查看文章详情: {}", id);
         }
 
         ArticleDetailVO articleDetail = articleService.getArticleDetail(id, userId);
+        log.debug("文章详情返回，isLiked: {}, isCollected: {}", articleDetail.getIsLiked(), articleDetail.getIsCollected());
         return R.success(articleDetail);
     }
 

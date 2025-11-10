@@ -65,4 +65,18 @@ public interface ArticleService {
      * @return 文章列表
      */
     Page<ArticleListVO> getMyArticles(Long userId, ArticleQueryDTO queryDTO);
+
+    /**
+     * 增加文章评论数
+     *
+     * @param articleId 文章ID
+     */
+    void incrementCommentCount(Long articleId);
+
+    /**
+     * 减少文章评论数
+     *
+     * @param articleId 文章ID
+     */
+    void decrementCommentCount(Long articleId);
 }

@@ -52,6 +52,9 @@ const handleLogout = async () => {
           <el-menu-item index="4" v-if="userStore.isLoggedIn">
             <RouterLink to="/profile">个人中心</RouterLink>
           </el-menu-item>
+          <el-menu-item index="5" v-if="userStore.isLoggedIn && userStore.isAdmin">
+            <RouterLink to="/admin">管理后台</RouterLink>
+          </el-menu-item>
         </el-menu>
 
         <!-- 用户操作区 -->
@@ -74,6 +77,9 @@ const handleLogout = async () => {
                   </el-dropdown-item>
                   <el-dropdown-item>
                     <RouterLink to="/edit-profile">修改信息</RouterLink>
+                  </el-dropdown-item>
+                  <el-dropdown-item v-if="userStore.isAdmin" divided>
+                    <RouterLink to="/admin">管理后台</RouterLink>
                   </el-dropdown-item>
                   <el-dropdown-item divided @click="handleLogout">退出登录</el-dropdown-item>
                 </el-dropdown-menu>

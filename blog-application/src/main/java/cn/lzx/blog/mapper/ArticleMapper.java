@@ -47,6 +47,14 @@ public interface ArticleMapper extends BaseMapper<Article> {
     int incrementCommentCount(@Param("id") Long id);
 
     /**
+     * 减少评论数
+     *
+     * @param id 文章ID
+     * @return 影响行数
+     */
+    int decrementCommentCount(@Param("id") Long id);
+
+    /**
      * 增加收藏数
      *
      * @param id 文章ID

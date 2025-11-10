@@ -33,6 +33,7 @@ export interface ArticleListItem {
   viewCount: number
   likeCount: number
   commentCount: number
+  status?: number // 0-草稿 1-已发布 4-已屏蔽
   createTime: string
   updateTime: string
 }

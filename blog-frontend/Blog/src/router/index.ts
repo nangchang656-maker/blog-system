@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import { ElMessage } from 'element-plus'
 import HomeView from '../views/HomeView.vue'
 import { useUserStore } from '@/stores/user'
 
@@ -65,6 +66,52 @@ const router = createRouter({
       name: 'my-articles',
       component: () => import('../views/article/MyArticlesView.vue'),
       meta: { title: '我的文章', requiresAuth: true }
+    },
+    // 管理员模块路由
+    {
+      path: '/admin',
+      name: 'admin',
+      component: () => import('../views/admin/AdminView.vue'),
+      meta: { title: '管理后台', requiresAuth: true, requiresAdmin: true },
+      redirect: '/admin/statistics',
+      children: [
+        {
+          path: 'statistics',
+          name: 'admin-statistics',
+          component: () => import('../views/admin/StatisticsView.vue'),
+          meta: { title: '数据统计', requiresAuth: true, requiresAdmin: true }
+        },
+        {
+          path: 'articles',
+          name: 'admin-articles',
+          component: () => import('../views/admin/ArticleManageView.vue'),
+          meta: { title: '文章管理', requiresAuth: true, requiresAdmin: true }
+        },
+        {
+          path: 'users',
+          name: 'admin-users',
+          component: () => import('../views/admin/UserManageView.vue'),
+          meta: { title: '访客管理', requiresAuth: true, requiresAdmin: true }
+        },
+        {
+          path: 'comments',
+          name: 'admin-comments',
+          component: () => import('../views/admin/CommentManageView.vue'),
+          meta: { title: '评论管理', requiresAuth: true, requiresAdmin: true }
+        },
+        {
+          path: 'categories',
+          name: 'admin-categories',
+          component: () => import('../views/admin/CategoryManageView.vue'),
+          meta: { title: '分类管理', requiresAuth: true, requiresAdmin: true }
+        },
+        {
+          path: 'tags',
+          name: 'admin-tags',
+          component: () => import('../views/admin/TagManageView.vue'),
+          meta: { title: '标签管理', requiresAuth: true, requiresAdmin: true }
+        }
+      ]
     }
   ]
 })
@@ -76,11 +123,21 @@ router.beforeEach((to, from, next) => {
     document.title = `${to.meta.title} - MyBlog`
   }
 
+  const userStore = useUserStore()
+
   // 检查是否需要登录
   if (to.meta.requiresAuth) {
-    const userStore = useUserStore()
     if (!userStore.isLoggedIn) {
       next('/login')
+      return
+    }
+  }
+
+  // 检查是否需要管理员权限
+  if (to.meta.requiresAdmin) {
+    if (!userStore.isAdmin) {
+      ElMessage.error('无权限访问')
+      next('/')
       return
     }
   }

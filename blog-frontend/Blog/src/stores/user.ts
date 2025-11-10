@@ -16,6 +16,11 @@ export const useUserStore = defineStore(
     // 计算属性：是否已登录
     const isLoggedIn = computed(() => !!token.value)
 
+    // 计算属性：是否为管理员（ID为1或2）
+    const isAdmin = computed(() => {
+      return userId.value === 1 || userId.value === 2
+    })
+
     // 登录
     const login = async (params: LoginParams) => {
       try {
@@ -77,6 +82,7 @@ export const useUserStore = defineStore(
       userId,
       userInfo,
       isLoggedIn,
+      isAdmin,
       login,
       logout,
       getUserInfo,

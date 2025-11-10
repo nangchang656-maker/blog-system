@@ -11,7 +11,7 @@
  Target Server Version : 80044
  File Encoding         : 65001
 
- Date: 31/10/2025 09:54:55
+ Date: 05/11/2025 14:35:32
 */
 
 SET NAMES utf8mb4;
@@ -34,7 +34,7 @@ CREATE TABLE `article`  (
   `comment_count` int NULL DEFAULT 0 COMMENT '评论数',
   `collect_count` int NULL DEFAULT 0 COMMENT '收藏数',
   `is_top` tinyint NULL DEFAULT 0 COMMENT '是否置顶：0否，1是',
-  `status` tinyint NULL DEFAULT 1 COMMENT '状态：0草稿，1已发布',
+  `status` tinyint NULL DEFAULT 1 COMMENT '状态：0草稿，1已发布, 4屏蔽',
   `deleted` tinyint NULL DEFAULT 0 COMMENT '逻辑删除：0未删除，1已删除',
   `create_time` datetime NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   `update_time` datetime NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
@@ -43,8 +43,10 @@ CREATE TABLE `article`  (
   INDEX `idx_category_id`(`category_id` ASC) USING BTREE,
   INDEX `idx_create_time`(`create_time` ASC) USING BTREE,
   INDEX `idx_status`(`status` ASC) USING BTREE,
-  INDEX `idx_is_top`(`is_top` ASC) USING BTREE
-) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '文章表' ROW_FORMAT = Dynamic;
+  INDEX `idx_is_top`(`is_top` ASC) USING BTREE,
+  INDEX `idx_status_create`(`status` ASC, `create_time` DESC) USING BTREE COMMENT '状态+时间复合索引',
+  INDEX `idx_category_status`(`category_id` ASC, `status` ASC) USING BTREE COMMENT '分类+状态复合索引'
+) ENGINE = InnoDB AUTO_INCREMENT = 7 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '文章表' ROW_FORMAT = Dynamic;
 
 -- ----------------------------
 -- Records of article
@@ -55,11 +57,13 @@ CREATE TABLE `article`  (
 -- ----------------------------
 DROP TABLE IF EXISTS `article_tag`;
 CREATE TABLE `article_tag`  (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键ID',
   `article_id` bigint NOT NULL COMMENT '文章ID',
   `tag_id` bigint NOT NULL COMMENT '标签ID',
   `create_time` datetime NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-  PRIMARY KEY (`article_id`, `tag_id`) USING BTREE,
-  INDEX `idx_tag_id`(`tag_id` ASC) USING BTREE
+  PRIMARY KEY (`id`) USING BTREE,
+  UNIQUE INDEX `uk_article_tag`(`article_id` ASC, `tag_id` ASC) USING BTREE COMMENT '联合唯一索引（防重复关联）',
+  INDEX `idx_tag_id`(`tag_id` ASC) USING BTREE COMMENT '标签ID索引'
 ) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '文章标签关联表' ROW_FORMAT = Dynamic;
 
 -- ----------------------------
@@ -79,16 +83,11 @@ CREATE TABLE `category`  (
   `update_time` datetime NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
   PRIMARY KEY (`id`) USING BTREE,
   UNIQUE INDEX `uk_name`(`name` ASC) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 6 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '分类表' ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB AUTO_INCREMENT = 15 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '分类表' ROW_FORMAT = Dynamic;
 
 -- ----------------------------
 -- Records of category
 -- ----------------------------
-INSERT INTO `category` VALUES (1, 'Java', 1, 0, '2025-10-30 03:37:27', '2025-10-30 03:37:27');
-INSERT INTO `category` VALUES (2, 'Python', 2, 0, '2025-10-30 03:37:27', '2025-10-30 03:37:27');
-INSERT INTO `category` VALUES (3, '前端开发', 3, 0, '2025-10-30 03:37:27', '2025-10-30 03:37:27');
-INSERT INTO `category` VALUES (4, '数据库', 4, 0, '2025-10-30 03:37:27', '2025-10-30 03:37:27');
-INSERT INTO `category` VALUES (5, '云原生', 5, 0, '2025-10-30 03:37:27', '2025-10-30 03:37:27');
 
 -- ----------------------------
 -- Table structure for collect
@@ -101,13 +100,15 @@ CREATE TABLE `collect`  (
   `deleted` tinyint NULL DEFAULT 0 COMMENT '逻辑删除：0未删除，1已删除',
   `create_time` datetime NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   PRIMARY KEY (`id`) USING BTREE,
-  UNIQUE INDEX `uk_user_article`(`user_id` ASC, `article_id` ASC) USING BTREE,
+  UNIQUE INDEX `uk_user_article_deleted`(`user_id` ASC, `article_id` ASC, `deleted` ASC) USING BTREE,
   INDEX `idx_article_id`(`article_id` ASC) USING BTREE
 ) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '收藏表' ROW_FORMAT = Dynamic;
 
 -- ----------------------------
 -- Records of collect
 -- ----------------------------
+INSERT INTO `collect` VALUES (6, 1, 9, 1, '2025-11-05 13:46:29');
+INSERT INTO `collect` VALUES (7, 1, 8, 1, '2025-11-05 13:46:33');
 
 -- ----------------------------
 -- Table structure for comment
@@ -132,29 +133,10 @@ CREATE TABLE `comment`  (
   INDEX `idx_parent_id`(`parent_id` ASC) USING BTREE,
   INDEX `idx_root_id`(`root_id` ASC) USING BTREE,
   INDEX `idx_status`(`status` ASC) USING BTREE
-) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '评论表' ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '评论表' ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Records of comment
--- ----------------------------
-
--- ----------------------------
--- Table structure for follow
--- ----------------------------
-DROP TABLE IF EXISTS `follow`;
-CREATE TABLE `follow`  (
-  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键ID',
-  `user_id` bigint NOT NULL COMMENT '用户ID',
-  `follow_user_id` bigint NOT NULL COMMENT '关注的用户ID',
-  `deleted` tinyint NULL DEFAULT 0 COMMENT '逻辑删除：0未删除，1已删除',
-  `create_time` datetime NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-  PRIMARY KEY (`id`) USING BTREE,
-  UNIQUE INDEX `uk_user_follow`(`user_id` ASC, `follow_user_id` ASC) USING BTREE,
-  INDEX `idx_follow_user_id`(`follow_user_id` ASC) USING BTREE
-) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '关注表' ROW_FORMAT = Dynamic;
-
--- ----------------------------
--- Records of follow
 -- ----------------------------
 
 -- ----------------------------
@@ -169,8 +151,8 @@ CREATE TABLE `like_record`  (
   `deleted` tinyint NULL DEFAULT 0 COMMENT '逻辑删除：0未删除，1已删除',
   `create_time` datetime NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   PRIMARY KEY (`id`) USING BTREE,
-  UNIQUE INDEX `uk_user_target`(`user_id` ASC, `target_id` ASC, `type` ASC) USING BTREE,
-  INDEX `idx_target`(`target_id` ASC, `type` ASC) USING BTREE
+  INDEX `idx_target`(`target_id` ASC, `type` ASC) USING BTREE,
+  UNIQUE INDEX `uk_user_target_deleted`(`user_id` ASC, `target_id` ASC, `type` ASC, `deleted` ASC) USING BTREE
 ) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '点赞记录表' ROW_FORMAT = Dynamic;
 
 -- ----------------------------
@@ -189,16 +171,11 @@ CREATE TABLE `tag`  (
   `update_time` datetime NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
   PRIMARY KEY (`id`) USING BTREE,
   UNIQUE INDEX `uk_name`(`name` ASC) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 6 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '标签表' ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB AUTO_INCREMENT = 20 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '标签表' ROW_FORMAT = Dynamic;
 
 -- ----------------------------
 -- Records of tag
 -- ----------------------------
-INSERT INTO `tag` VALUES (1, 'Spring Boot', 0, '2025-10-30 03:37:27', '2025-10-30 03:37:27');
-INSERT INTO `tag` VALUES (2, 'MyBatis', 0, '2025-10-30 03:37:27', '2025-10-30 03:37:27');
-INSERT INTO `tag` VALUES (3, 'Redis', 0, '2025-10-30 03:37:27', '2025-10-30 03:37:27');
-INSERT INTO `tag` VALUES (4, 'MySQL', 0, '2025-10-30 03:37:27', '2025-10-30 03:37:27');
-INSERT INTO `tag` VALUES (5, 'Vue.js', 0, '2025-10-30 03:37:27', '2025-10-30 03:37:27');
 
 -- ----------------------------
 -- Table structure for user
@@ -222,10 +199,12 @@ CREATE TABLE `user`  (
   INDEX `idx_username`(`username` ASC) USING BTREE,
   INDEX `idx_email`(`email` ASC) USING BTREE,
   INDEX `idx_status`(`status` ASC) USING BTREE
-) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '用户表' ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB AUTO_INCREMENT = 3 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '用户表' ROW_FORMAT = Dynamic;
 
 -- ----------------------------
 -- Records of user
 -- ----------------------------
+INSERT INTO `user` VALUES (1, 'lzx', '$2a$10$z.seNmK/wGnAgkWeZW20eu1l.PzF7q2BdcO3h6pf0hJ1MqW53eAgC', 'lzx111', 'http://localhost:9000/blog-files/avatars/user_1_avatar.jpg', 'nangchang656@gmail.com', '19271759490', 'nihaoa', 1, 0, '2025-11-03 21:23:56', '2025-11-04 11:29:10');
+INSERT INTO `user` VALUES (2, 'lzx111', '$2a$10$nVu7mV0Ji1sv7SgtrKQx3.o.NgA5nrHHl/DCkEdAularNc.uYynhu', 'lzx', 'http://localhost:9000/blog-files/avatars/user_2_avatar.jpg', '2823980197@qq.com', '19271759490', '帅', 1, 0, '2025-11-04 09:13:25', '2025-11-04 11:33:35');
 
 SET FOREIGN_KEY_CHECKS = 1;

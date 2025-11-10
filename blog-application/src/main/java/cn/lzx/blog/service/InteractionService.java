@@ -70,4 +70,29 @@ public interface InteractionService {
      * @return 收藏的文章列表
      */
     Page<ArticleListVO> getCollectedArticles(Long userId, int page, int size);
+
+    /**
+     * 点赞评论
+     *
+     * @param userId    用户ID
+     * @param commentId 评论ID
+     */
+    void likeComment(Long userId, Long commentId);
+
+    /**
+     * 取消点赞评论
+     *
+     * @param userId    用户ID
+     * @param commentId 评论ID
+     */
+    void unlikeComment(Long userId, Long commentId);
+
+    /**
+     * 检查用户是否点赞了评论
+     *
+     * @param userId    用户ID
+     * @param commentId 评论ID
+     * @return 是否点赞
+     */
+    boolean isCommentLiked(Long userId, Long commentId);
 }

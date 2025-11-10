@@ -1,12 +1,13 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, onMounted, watch } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import { useUserStore } from '@/stores/user'
 import { getMyCollections, type ArticleListItem } from '@/api/article'
 import { ElMessage } from 'element-plus'
 import { View, Star } from '@element-plus/icons-vue'
 
 const router = useRouter()
+const route = useRoute()
 const userStore = useUserStore()
 const activeTab = ref('info')
 const loading = ref(false)
@@ -19,13 +20,32 @@ const pageSize = ref(10)
 const total = ref(0)
 
 // 加载用户信息
-onMounted(async () => {
-  if (!userStore.userInfo) {
+const loadUserInfo = async () => {
+  if (userStore.isLoggedIn) {
     loading.value = true
-    await userStore.getUserInfo()
-    loading.value = false
+    try {
+      await userStore.getUserInfo()
+    } catch (error) {
+      console.error('加载用户信息失败', error)
+    } finally {
+      loading.value = false
+    }
   }
+}
+
+onMounted(() => {
+  loadUserInfo()
 })
+
+// 监听路由变化，当进入个人中心页面时刷新用户信息
+watch(
+  () => route.path,
+  (newPath) => {
+    if (newPath === '/profile') {
+      loadUserInfo()
+    }
+  }
+)
 
 // 加载收藏列表
 const loadCollections = async () => {
@@ -94,12 +114,8 @@ const formatTime = (time: string) => {
               <span class="label">文章</span>
             </div>
             <div class="stat-item">
-              <span class="count">{{ userStore.userInfo?.followCount || 0 }}</span>
-              <span class="label">关注</span>
-            </div>
-            <div class="stat-item">
-              <span class="count">{{ userStore.userInfo?.fansCount || 0 }}</span>
-              <span class="label">粉丝</span>
+              <span class="count">{{ userStore.userInfo?.collectCount || 0 }}</span>
+              <span class="label">收藏</span>
             </div>
           </div>
           <el-button type="primary" @click="goToEdit">编辑资料</el-button>
@@ -180,10 +196,6 @@ const formatTime = (time: string) => {
               />
             </div>
           </div>
-        </el-tab-pane>
-
-        <el-tab-pane label="关注" name="following">
-          <el-empty description="暂无关注" />
         </el-tab-pane>
       </el-tabs>
     </el-card>

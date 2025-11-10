@@ -48,14 +48,4 @@ public class UserInfoVO {
      * 收藏数（用户收藏的文章数量）
      */
     private Long collectCount;
-
-    /**
-     * 关注数
-     */
-    private Long followCount;
-
-    /**
-     * 粉丝数
-     */
-    private Long fansCount;
 }

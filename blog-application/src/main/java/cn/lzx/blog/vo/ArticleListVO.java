@@ -86,6 +86,11 @@ public class ArticleListVO {
     private Integer commentCount;
 
     /**
+     * 状态：0草稿，1已发布，4已屏蔽
+     */
+    private Integer status;
+
+    /**
      * 创建时间
      */
     private LocalDateTime createTime;

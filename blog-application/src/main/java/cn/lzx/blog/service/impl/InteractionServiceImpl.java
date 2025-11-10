@@ -3,6 +3,7 @@ package cn.lzx.blog.service.impl;
 import cn.lzx.blog.mapper.ArticleMapper;
 import cn.lzx.blog.mapper.CategoryMapper;
 import cn.lzx.blog.mapper.CollectMapper;
+import cn.lzx.blog.mapper.CommentMapper;
 import cn.lzx.blog.mapper.LikeRecordMapper;
 import cn.lzx.blog.mapper.TagMapper;
 import cn.lzx.blog.mapper.UserMapper;
@@ -12,6 +13,7 @@ import cn.lzx.blog.vo.TagVO;
 import cn.lzx.entity.Article;
 import cn.lzx.entity.Category;
 import cn.lzx.entity.Collect;
+import cn.lzx.entity.Comment;
 import cn.lzx.entity.LikeRecord;
 import cn.lzx.entity.Tag;
 import cn.lzx.entity.User;
@@ -41,6 +43,7 @@ public class InteractionServiceImpl implements InteractionService {
     private final ArticleMapper articleMapper;
     private final LikeRecordMapper likeRecordMapper;
     private final CollectMapper collectMapper;
+    private final CommentMapper commentMapper;
     private final CategoryMapper categoryMapper;
     private final TagMapper tagMapper;
     private final UserMapper userMapper;
@@ -287,5 +290,83 @@ public class InteractionServiceImpl implements InteractionService {
         Page<ArticleListVO> resultPage = new Page<>(page, size, collects.getTotal());
         resultPage.setRecords(articleVOList);
         return resultPage;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void likeComment(Long userId, Long commentId) {
+        // 1. 验证评论是否存在
+        Comment comment = commentMapper.selectById(commentId);
+        if (comment == null || comment.getDeleted() == 1) {
+            throw new CommonException("评论不存在");
+        }
+
+        // 2. 查询是否存在点赞记录（包括已逻辑删除的）
+        LikeRecord existRecord = likeRecordMapper.selectIncludeDeleted(userId, commentId, 2);
+
+        if (existRecord != null) {
+            // 2.1 如果记录存在且未删除，说明已经点赞过
+            if (existRecord.getDeleted() == 0) {
+                throw new CommonException("您已经点赞过该评论");
+            }
+
+            // 2.2 如果记录存在但已删除，恢复该记录（将deleted改为0）
+            int restored = likeRecordMapper.restoreDeleted(userId, commentId, 2);
+            if (restored <= 0) {
+                throw new CommonException("点赞失败");
+            }
+            log.info("用户[{}]点赞评论[{}]成功（恢复已删除记录）", userId, commentId);
+        } else {
+            // 2.3 如果记录不存在，创建新记录
+            LikeRecord likeRecord = LikeRecord.builder()
+                    .userId(userId)
+                    .targetId(commentId)
+                    .type(2) // 2表示评论点赞
+                    .build();
+
+            int result = likeRecordMapper.insert(likeRecord);
+            if (result <= 0) {
+                throw new CommonException("点赞失败");
+            }
+            log.info("用户[{}]点赞评论[{}]成功（新增记录）", userId, commentId);
+        }
+
+        // 3. 增加评论点赞数
+        commentMapper.incrementLikeCount(commentId);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void unlikeComment(Long userId, Long commentId) {
+        // 1. 查询点赞记录（只查未删除的）
+        LambdaQueryWrapper<LikeRecord> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(LikeRecord::getUserId, userId)
+                .eq(LikeRecord::getTargetId, commentId)
+                .eq(LikeRecord::getType, 2); // 2表示评论点赞
+
+        LikeRecord likeRecord = likeRecordMapper.selectOne(wrapper);
+        if (likeRecord == null) {
+            throw new CommonException("您还未点赞该评论");
+        }
+
+        // 2. 逻辑删除点赞记录
+        int result = likeRecordMapper.deleteById(likeRecord.getId());
+        if (result <= 0) {
+            throw new CommonException("取消点赞失败");
+        }
+
+        // 3. 减少评论点赞数
+        commentMapper.decrementLikeCount(commentId);
+
+        log.info("用户[{}]取消点赞评论[{}]成功", userId, commentId);
+    }
+
+    @Override
+    public boolean isCommentLiked(Long userId, Long commentId) {
+        LambdaQueryWrapper<LikeRecord> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(LikeRecord::getUserId, userId)
+                .eq(LikeRecord::getTargetId, commentId)
+                .eq(LikeRecord::getType, 2); // 2表示评论点赞
+        return likeRecordMapper.selectCount(wrapper) > 0;
     }
 }

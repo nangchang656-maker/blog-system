@@ -26,8 +26,7 @@ export interface UserInfo {
   bio?: string
   createTime?: string
   articleCount?: number
-  followCount?: number
-  fansCount?: number
+  collectCount?: number
 }
 
 // 修改用户信息参数

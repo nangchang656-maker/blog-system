@@ -15,6 +15,18 @@
         </template>
       </el-table-column>
 
+      <el-table-column prop="status" label="状态" width="100">
+        <template #default="{ row }">
+          <el-tag
+            v-if="row.status !== undefined"
+            :type="getStatusType(row.status)"
+            size="small"
+          >
+            {{ getStatusText(row.status) }}
+          </el-tag>
+        </template>
+      </el-table-column>
+
       <el-table-column label="标签" width="200">
         <template #default="{ row }">
           <el-tag v-for="tag in row.tags.slice(0, 2)" :key="tag.id" size="small" style="margin-right: 4px">
@@ -74,6 +86,7 @@ import { ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { View, Star, ChatDotRound } from '@element-plus/icons-vue'
 import type { ArticleListItem } from '@/api/article'
+import { ARTICLE_STATUS_DRAFT, ARTICLE_STATUS_PUBLISHED, ARTICLE_STATUS_BLOCKED } from '@/constants/article'
 
 interface Props {
   articles: ArticleListItem[]
@@ -101,6 +114,22 @@ const viewArticle = (id: number) => {
 // 分页变化
 const handlePageChange = () => {
   emit('pageChange', currentPage.value, pageSize.value)
+}
+
+// 获取状态文本
+const getStatusText = (status: number | undefined) => {
+  if (status === ARTICLE_STATUS_DRAFT) return '草稿'
+  if (status === ARTICLE_STATUS_PUBLISHED) return '已发布'
+  if (status === ARTICLE_STATUS_BLOCKED) return '已屏蔽'
+  return '未知'
+}
+
+// 获取状态类型
+const getStatusType = (status: number | undefined) => {
+  if (status === ARTICLE_STATUS_DRAFT) return 'info'
+  if (status === ARTICLE_STATUS_PUBLISHED) return 'success'
+  if (status === ARTICLE_STATUS_BLOCKED) return 'danger'
+  return ''
 }
 
 // 格式化时间

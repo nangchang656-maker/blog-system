@@ -30,6 +30,13 @@
         WHERE id = #{id}
     </update>
 
+    <!-- 减少评论数 -->
+    <update id="decrementCommentCount">
+        UPDATE article
+        SET comment_count = comment_count - 1
+        WHERE id = #{id} AND comment_count > 0
+    </update>
+
     <!-- 增加收藏数 -->
     <update id="incrementCollectCount">
         UPDATE article
