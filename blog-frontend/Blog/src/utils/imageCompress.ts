@@ -20,7 +20,8 @@ export interface CompressOptions {
  * @returns 压缩后的 Blob
  */
 export function compressImage(file: File, options: CompressOptions = {}): Promise<Blob> {
-  const {
+// 对象的解构赋值，并提供默认值.
+const {
     quality = 0.8,
     maxWidth = 1920,
     maxHeight = 1920,

@@ -1,11 +1,25 @@
 package cn.lzx.blog.controller.api;
 
+import java.util.HashMap;
+import java.util.Map;
+
+import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
+
 import cn.lzx.annotation.NoLogin;
+import cn.lzx.blog.dto.EmailCodeRequest;
 import cn.lzx.blog.dto.PasswordUpdateDTO;
+import cn.lzx.blog.dto.RefreshTokenRequest;
 import cn.lzx.blog.dto.UserLoginDTO;
 import cn.lzx.blog.dto.UserRegisterDTO;
 import cn.lzx.blog.dto.UserUpdateDTO;
-import cn.lzx.blog.service.FileUploadService;
 import cn.lzx.blog.service.UserService;
 import cn.lzx.blog.vo.UserInfoVO;
 import cn.lzx.blog.vo.UserLoginVO;
@@ -16,16 +30,8 @@ import cn.lzx.utils.SecurityContextUtil;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.Email;
-import jakarta.validation.constraints.NotBlank;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.validation.annotation.Validated;
-import org.springframework.web.bind.annotation.*;
-import org.springframework.web.multipart.MultipartFile;
-
-import java.util.HashMap;
-import java.util.Map;
 
 /**
  * 用户API控制器
@@ -39,7 +45,6 @@ import java.util.Map;
 public class UserController {
 
     private final UserService userService;
-    private final FileUploadService fileUploadService;
     private final TokenService tokenService;
 
     /**
@@ -114,6 +119,21 @@ public class UserController {
     }
 
     /**
+     * 上传头像
+     */
+    @Operation(summary = "上传头像")
+    @PostMapping("/avatar/upload")
+    public R uploadAvatar(@RequestParam("file") MultipartFile file) {
+        Long userId = SecurityContextUtil.getCurrentUserId();
+        String fileUrl = userService.uploadAvatar(file, userId);
+
+        Map<String, String> result = new HashMap<>();
+        result.put("url", fileUrl);
+
+        return R.success(result);
+    }
+
+    /**
      * 修改密码
      */
     @Operation(summary = "修改密码")
@@ -137,40 +157,4 @@ public class UserController {
         return R.success("退出登录成功");
     }
 
-    /**
-     * 上传头像
-     */
-    @Operation(summary = "上传头像")
-    @PostMapping("/avatar/upload")
-    public R uploadAvatar(@RequestParam("file") MultipartFile file) {
-        Long userId = SecurityContextUtil.getCurrentUserId();
-        String fileUrl = fileUploadService.uploadAvatar(file, userId);
-
-        Map<String, String> result = new HashMap<>();
-        result.put("url", fileUrl);
-
-        return R.success(result);
-    }
-
-    /**
-     * 邮箱验证码请求对象
-     */
-    @lombok.Data
-    public static class EmailCodeRequest {
-        @NotBlank(message = "邮箱不能为空")
-        @Email(message = "邮箱格式不正确")
-        private String email;
-    }
-
-    /**
-     * 刷新Token请求对象
-     */
-    @lombok.Data
-    public static class RefreshTokenRequest {
-        @jakarta.validation.constraints.NotNull(message = "用户ID不能为空")
-        private Long userId;
-
-        @NotBlank(message = "RefreshToken不能为空")
-        private String refreshToken;
-    }
 }

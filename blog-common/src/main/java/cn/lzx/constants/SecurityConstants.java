@@ -15,9 +15,6 @@ public class SecurityConstants {
 
     /**
      * AccessToken过期时间(15分钟)单位:毫秒
-     * 说明:采用较短的有效期,配合RefreshToken实现安全的无状态认证
-     * - 注销后Token最多15分钟内失效(可接受的安全风险)
-     * - 避免每次请求都访问Redis检查黑名单,保持JWT无状态特性
      */
     public static final Long ACCESS_TOKEN_EXPIRATION = 15 * 60 * 1000L;
 
@@ -43,6 +40,11 @@ public class SecurityConstants {
     public static final String TOKEN_PREFIX = "Bearer ";
 
     /**
+     * Token类型（用于响应中的tokenType字段）
+     */
+    public static final String TOKEN_TYPE = "Bearer";
+
+    /**
      * 新Token响应头名称（用于自动续期）
      */
     public static final String NEW_TOKEN_HEADER = "X-New-Token";
@@ -58,12 +60,13 @@ public class SecurityConstants {
     public static final String JWT_CLAIM_USERNAME = "username";
 
     /**
-     * 用户状态：正常
+     * RefreshToken数据Map中的RefreshToken字段键名
      */
-    public static final Integer USER_STATUS_NORMAL = 1;
+    public static final String KEY_REFRESH_TOKEN = "refreshToken";
 
     /**
-     * 用户状态：禁用
+     * RefreshToken数据Map中的创建时间字段键名
      */
-    public static final Integer USER_STATUS_DISABLED = 0;
+    public static final String KEY_CREATE_TIME = "createTime";
+
 }

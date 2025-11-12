@@ -18,8 +18,6 @@ public class UserUpdateDTO {
     @Pattern(regexp = "^1[3-9]\\d{9}$", message = "手机号格式不正确")
     private String phone;
 
-    private String avatar; // 头像URL（MinIO存储后返回的路径）
-
     @Size(max = 200, message = "个人简介不能超过200字符")
-    private String bio;
+    private String intro;
 }

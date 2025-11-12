@@ -26,6 +26,7 @@ watch(
     if (newFile) {
       const reader = new FileReader()
       reader.onload = (e) => {
+        // 这里的问号 ?. 是 TypeScript 的可选链操作符，意思是只有当 e.target 存在时才会去访问 result 属性，避免 e.target 可能为 null 或 undefined 时出现运行时错误。
         imageUrl.value = e.target?.result as string
       }
       reader.readAsDataURL(newFile)

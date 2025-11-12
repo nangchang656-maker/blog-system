@@ -1,31 +1,46 @@
 package cn.lzx.blog.service.impl;
 
-import cn.lzx.blog.dto.ArticlePublishDTO;
-import cn.lzx.blog.dto.ArticleQueryDTO;
-import cn.lzx.blog.mapper.*;
-import cn.lzx.blog.service.ArticleService;
-import cn.lzx.blog.service.CategoryService;
-import cn.lzx.blog.service.TagService;
-import cn.lzx.blog.vo.ArticleDetailVO;
-import cn.lzx.blog.vo.ArticleListVO;
-import cn.lzx.blog.vo.TagVO;
-import cn.lzx.constants.CommonConstants;
-import cn.lzx.entity.*;
-import cn.lzx.exception.CommonException;
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.baomidou.mybatisplus.core.metadata.IPage;
-import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-import org.springframework.util.StringUtils;
-
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
+
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+
+import cn.lzx.blog.dto.ArticlePublishDTO;
+import cn.lzx.blog.dto.ArticleQueryDTO;
+import cn.lzx.blog.mapper.ArticleMapper;
+import cn.lzx.blog.mapper.ArticleTagMapper;
+import cn.lzx.blog.mapper.CollectMapper;
+import cn.lzx.blog.mapper.LikeRecordMapper;
+import cn.lzx.blog.mapper.TagMapper;
+import cn.lzx.blog.mapper.UserMapper;
+import cn.lzx.blog.service.ArticleService;
+import cn.lzx.blog.service.CategoryService;
+import cn.lzx.blog.service.TagService;
+import cn.lzx.blog.vo.ArticleDetailVO;
+import cn.lzx.blog.vo.ArticleListVO;
+import cn.lzx.blog.vo.CategoryVO;
+import cn.lzx.blog.vo.TagVO;
+import cn.lzx.constants.AdminConstants;
+import cn.lzx.constants.ArticleOrderConstants;
+import cn.lzx.constants.CommonConstants;
+import cn.lzx.entity.Article;
+import cn.lzx.entity.ArticleTag;
+import cn.lzx.entity.Collect;
+import cn.lzx.entity.LikeRecord;
+import cn.lzx.entity.Tag;
+import cn.lzx.entity.User;
+import cn.lzx.exception.BusinessException;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * 文章Service实现类
@@ -41,7 +56,6 @@ public class ArticleServiceImpl implements ArticleService {
     private final ArticleMapper articleMapper;
     private final ArticleTagMapper articleTagMapper;
     private final TagMapper tagMapper;
-    private final CategoryMapper categoryMapper;
     private final UserMapper userMapper;
     private final LikeRecordMapper likeRecordMapper;
     private final CollectMapper collectMapper;
@@ -53,24 +67,11 @@ public class ArticleServiceImpl implements ArticleService {
     public Long publishArticle(Long userId, ArticlePublishDTO dto) {
         // 0. 校验用户ID
         if (userId == null) {
-            throw new CommonException("用户未登录");
+            throw new BusinessException("用户未登录");
         }
 
         // 1. 处理分类（优先使用ID，如果ID为空则使用名称创建或获取）
-        Long categoryId;
-        if (dto.getCategoryId() != null) {
-            // 使用提供的分类ID，验证是否存在
-            Category category = categoryMapper.selectById(dto.getCategoryId());
-            if (category == null) {
-                throw new CommonException("分类不存在");
-            }
-            categoryId = dto.getCategoryId();
-        } else if (StringUtils.hasText(dto.getCategoryName())) {
-            // 使用分类名称创建或获取分类
-            categoryId = categoryService.getOrCreateCategoryByName(dto.getCategoryName());
-        } else {
-            throw new CommonException("分类不能为空");
-        }
+        Long categoryId = resolveCategoryId(dto.getCategoryId(), dto.getCategoryName());
 
         // 2. 创建文章
         Article article = Article.builder()
@@ -92,24 +93,13 @@ public class ArticleServiceImpl implements ArticleService {
 
         int result = articleMapper.insert(article);
         if (result <= 0) {
-            throw new CommonException("发布文章失败");
+            throw new BusinessException("发布文章失败");
         }
 
         // 3. 处理标签（同时支持ID列表和名称列表）
-        List<Long> tagIds = new ArrayList<>();
+        List<Long> tagIds = resolveTagIds(dto.getTagIds(), dto.getTagNames());
 
-        // 添加已存在的标签ID
-        if (dto.getTagIds() != null && !dto.getTagIds().isEmpty()) {
-            tagIds.addAll(dto.getTagIds());
-        }
-
-        // 添加新创建的标签ID
-        if (dto.getTagNames() != null && !dto.getTagNames().isEmpty()) {
-            List<Long> newTagIds = tagService.getOrCreateTagsByNames(dto.getTagNames());
-            tagIds.addAll(newTagIds);
-        }
-
-        // 4. 保存文章标签关联
+        // 4. 保存文章标签关联(不考虑异步,该操作目前不频繁)
         if (!tagIds.isEmpty()) {
             saveArticleTags(article.getId(), tagIds);
         }
@@ -124,34 +114,21 @@ public class ArticleServiceImpl implements ArticleService {
         // 1. 查询文章
         Article article = articleMapper.selectById(articleId);
         if (article == null) {
-            throw new CommonException("文章不存在");
+            throw new BusinessException("文章不存在");
         }
 
         // 2. 验证权限（只能编辑自己的文章）
         if (!article.getUserId().equals(userId)) {
-            throw new CommonException("无权限编辑此文章");
+            throw new BusinessException("无权限编辑此文章");
         }
 
         // 2.1 验证文章状态
         if (article.getStatus() == CommonConstants.ARTICLE_STATUS_BLOCKED) {
-            throw new CommonException("已屏蔽文章不能编辑");
+            throw new BusinessException("已屏蔽文章不能编辑");
         }
-        
+
         // 3. 处理分类（优先使用ID，如果ID为空则使用名称创建或获取）
-        Long categoryId;
-        if (dto.getCategoryId() != null) {
-            // 使用提供的分类ID，验证是否存在
-            Category category = categoryMapper.selectById(dto.getCategoryId());
-            if (category == null) {
-                throw new CommonException("分类不存在");
-            }
-            categoryId = dto.getCategoryId();
-        } else if (StringUtils.hasText(dto.getCategoryName())) {
-            // 使用分类名称创建或获取分类
-            categoryId = categoryService.getOrCreateCategoryByName(dto.getCategoryName());
-        } else {
-            throw new CommonException("分类不能为空");
-        }
+        Long categoryId = resolveCategoryId(dto.getCategoryId(), dto.getCategoryName());
 
         // 4. 更新文章
         article.setTitle(dto.getTitle());
@@ -164,22 +141,11 @@ public class ArticleServiceImpl implements ArticleService {
 
         int result = articleMapper.updateById(article);
         if (result <= 0) {
-            throw new CommonException("更新文章失败");
+            throw new BusinessException("更新文章失败");
         }
 
         // 5. 处理标签（同时支持ID列表和名称列表）
-        List<Long> tagIds = new ArrayList<>();
-
-        // 添加已存在的标签ID
-        if (dto.getTagIds() != null && !dto.getTagIds().isEmpty()) {
-            tagIds.addAll(dto.getTagIds());
-        }
-
-        // 添加新创建的标签ID
-        if (dto.getTagNames() != null && !dto.getTagNames().isEmpty()) {
-            List<Long> newTagIds = tagService.getOrCreateTagsByNames(dto.getTagNames());
-            tagIds.addAll(newTagIds);
-        }
+        List<Long> tagIds = resolveTagIds(dto.getTagIds(), dto.getTagNames());
 
         // 6. 更新文章标签关联（先删除旧的，再插入新的）
         LambdaQueryWrapper<ArticleTag> wrapper = new LambdaQueryWrapper<>();
@@ -199,18 +165,18 @@ public class ArticleServiceImpl implements ArticleService {
         // 1. 查询文章
         Article article = articleMapper.selectById(articleId);
         if (article == null) {
-            throw new CommonException("文章不存在");
+            throw new BusinessException("文章不存在");
         }
 
         // 2. 验证权限（只能删除自己的文章）
         if (!article.getUserId().equals(userId)) {
-            throw new CommonException("无权限删除此文章");
+            throw new BusinessException("无权限删除此文章");
         }
 
         // 3. 逻辑删除文章
         int result = articleMapper.deleteById(articleId);
         if (result <= 0) {
-            throw new CommonException("删除文章失败");
+            throw new BusinessException("删除文章失败");
         }
 
         // 4. 删除文章标签关联
@@ -235,7 +201,7 @@ public class ArticleServiceImpl implements ArticleService {
             wrapper.eq(Article::getCategoryId, queryDTO.getCategoryId());
         }
 
-        // TODO: 太慢了,一定要使用es+ik分词
+        // TODO: 采用es+ik分词,提高查询性能
         // 关键词搜索（标题或摘要）
         if (StringUtils.hasText(queryDTO.getKeyword())) {
             wrapper.and(w -> w.like(Article::getTitle, queryDTO.getKeyword())
@@ -245,11 +211,11 @@ public class ArticleServiceImpl implements ArticleService {
 
         // 排序
         String orderBy = queryDTO.getOrderBy();
-        boolean isAsc = "asc".equalsIgnoreCase(queryDTO.getOrderType());
+        boolean isAsc = ArticleOrderConstants.OrderType.ASC.equalsIgnoreCase(queryDTO.getOrderType());
 
-        if ("view_count".equals(orderBy)) {
+        if (ArticleOrderConstants.OrderBy.VIEW_COUNT.equals(orderBy)) {
             wrapper.orderBy(true, isAsc, Article::getViewCount);
-        } else if ("like_count".equals(orderBy)) {
+        } else if (ArticleOrderConstants.OrderBy.LIKE_COUNT.equals(orderBy)) {
             wrapper.orderBy(true, isAsc, Article::getLikeCount);
         } else {
             wrapper.orderBy(true, isAsc, Article::getCreateTime);
@@ -259,7 +225,8 @@ public class ArticleServiceImpl implements ArticleService {
         IPage<Article> articlePage = articleMapper.selectPage(page, wrapper);
 
         // 4. 转换为VO
-        Page<ArticleListVO> voPage = new Page<>(articlePage.getCurrent(), articlePage.getSize(), articlePage.getTotal());
+        Page<ArticleListVO> voPage = new Page<>(articlePage.getCurrent(), articlePage.getSize(),
+                articlePage.getTotal());
         List<ArticleListVO> voList = convertToArticleListVO(articlePage.getRecords(), queryDTO.getTagId());
         voPage.setRecords(voList);
 
@@ -272,26 +239,28 @@ public class ArticleServiceImpl implements ArticleService {
         // 1. 查询文章
         Article article = articleMapper.selectById(articleId);
         if (article == null) {
-            throw new CommonException("文章不存在");
+            throw new BusinessException("文章不存在");
         }
 
         // 2. 草稿文章权限判断：只有作者本人可以查看草稿
         if (article.getStatus() == CommonConstants.ARTICLE_STATUS_DRAFT) {
             if (userId == null || !article.getUserId().equals(userId)) {
-                throw new CommonException("无权限查看此文章");
+                throw new BusinessException("无权限查看此文章");
             }
         }
 
         // 3. 屏蔽文章权限判断：被屏蔽的文章不对外显示（作者本人和管理员可以查看）
+        // TODO: 使用缓存时,注意文章被屏蔽后缓存的可见性
         if (article.getStatus() == CommonConstants.ARTICLE_STATUS_BLOCKED) {
-            if (userId == null || (!article.getUserId().equals(userId) && !cn.lzx.constants.AdminConstants.isAdmin(userId))) {
-                throw new CommonException("文章不存在或已被屏蔽");
+            if (userId == null
+                    || (!article.getUserId().equals(userId) && !AdminConstants.isAdmin(userId))) {
+                throw new BusinessException("文章不存在或已被屏蔽");
             }
         }
 
         // 4. 增加浏览量（草稿和屏蔽文章不增加浏览量）
         if (article.getStatus() == CommonConstants.ARTICLE_STATUS_PUBLISHED) {
-            // 异步增加浏览量（这里简化处理，实际应该使用消息队列异步处理）
+            // TODO: 文章的点赞等信息单独缓存,处理缓存中的数据,通过定时任务更新数据库
             articleMapper.incrementViewCount(articleId);
             article.setViewCount(article.getViewCount() + 1);
         }
@@ -309,9 +278,10 @@ public class ArticleServiceImpl implements ArticleService {
                 .collect(Collectors.toList());
 
         // 7. 查询分类
-        Category category = categoryMapper.selectById(article.getCategoryId());
+        CategoryVO category = categoryService.getCategoryById(article.getCategoryId());
 
         // 8. 查询当前用户是否点赞和收藏（如果用户已登录）
+        // TODO: 这些信息也单独缓存
         Boolean isLiked = false;
         Boolean isCollected = false;
         if (userId != null) {
@@ -330,7 +300,8 @@ public class ArticleServiceImpl implements ArticleService {
                     .eq(Collect::getArticleId, articleId);
             long collectCount = collectMapper.selectCount(collectWrapper);
             isCollected = collectCount > 0;
-            log.debug("查询收藏状态 - 用户ID: {}, 文章ID: {}, 收藏记录数: {}, isCollected: {}", userId, articleId, collectCount, isCollected);
+            log.debug("查询收藏状态 - 用户ID: {}, 文章ID: {}, 收藏记录数: {}, isCollected: {}", userId, articleId, collectCount,
+                    isCollected);
         } else {
             log.debug("用户未登录，不查询点赞和收藏状态 - 文章ID: {}", articleId);
         }
@@ -368,15 +339,13 @@ public class ArticleServiceImpl implements ArticleService {
         LambdaQueryWrapper<Article> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(Article::getUserId, userId);
 
-        // 状态筛选（草稿、已发布或已屏蔽）
-        // 注意：作者应该能看到自己所有状态的文章，包括被屏蔽的
+        // 状态筛选（草稿、已发布[包含已屏蔽])
         if (queryDTO.getStatus() != null) {
             if (queryDTO.getStatus() == CommonConstants.ARTICLE_STATUS_PUBLISHED) {
-                // 查询"已发布"时，包括已发布和已屏蔽的文章（因为被屏蔽的文章原本是已发布的）
                 wrapper.and(w -> w.eq(Article::getStatus, CommonConstants.ARTICLE_STATUS_PUBLISHED)
                         .or().eq(Article::getStatus, CommonConstants.ARTICLE_STATUS_BLOCKED));
             } else {
-                // 其他状态直接查询
+                // 其他状态直接查询(草稿)
                 wrapper.eq(Article::getStatus, queryDTO.getStatus());
             }
         }
@@ -388,11 +357,60 @@ public class ArticleServiceImpl implements ArticleService {
         IPage<Article> articlePage = articleMapper.selectPage(page, wrapper);
 
         // 4. 转换为VO
-        Page<ArticleListVO> voPage = new Page<>(articlePage.getCurrent(), articlePage.getSize(), articlePage.getTotal());
+        Page<ArticleListVO> voPage = new Page<>(articlePage.getCurrent(), articlePage.getSize(),
+                articlePage.getTotal());
         List<ArticleListVO> voList = convertToArticleListVO(articlePage.getRecords(), null);
         voPage.setRecords(voList);
 
         return voPage;
+    }
+
+    /**
+     * 解析分类ID（优先使用ID，如果ID为空则使用名称创建或获取）
+     * 
+     * @param categoryId   分类ID
+     * @param categoryName 分类名称
+     * @return 分类ID
+     */
+    private Long resolveCategoryId(Long categoryId, String categoryName) {
+        if (categoryId != null) {
+            CategoryVO category = categoryService.getCategoryById(categoryId);
+            if (category == null) {
+                throw new BusinessException("分类不存在");
+            }
+            return categoryId;
+        }
+
+        if (StringUtils.hasText(categoryName)) {
+            return categoryService.getOrCreateCategoryByName(categoryName.trim());
+        }
+
+        throw new BusinessException("分类不能为空");
+    }
+
+    /**
+     * 解析标签ID列表（同时支持ID列表和名称列表）
+     * 
+     * @param tagIds   标签ID列表
+     * @param tagNames 标签名称列表
+     * @return 标签ID列表
+     */
+    private List<Long> resolveTagIds(List<Long> tagIds, List<String> tagNames) {
+        List<Long> result = new ArrayList<>();
+
+        // 添加已存在的标签ID
+        if (tagIds != null && !tagIds.isEmpty()) {
+            result.addAll(tagIds);
+        }
+
+        // 添加新创建的标签ID
+        // TODO: 定时任务清理长期不使用的标签
+        if (tagNames != null && !tagNames.isEmpty()) {
+            List<Long> newTagIds = tagService.getOrCreateTagsByNames(tagNames);
+            result.addAll(newTagIds);
+        }
+
+        return result;
     }
 
     /**
@@ -403,7 +421,7 @@ public class ArticleServiceImpl implements ArticleService {
             // 验证标签是否存在
             Tag tag = tagMapper.selectById(tagId);
             if (tag == null) {
-                throw new CommonException("标签ID[" + tagId + "]不存在");
+                throw new BusinessException("标签ID[" + tagId + "]不存在");
             }
 
             ArticleTag articleTag = ArticleTag.builder()
@@ -439,9 +457,7 @@ public class ArticleServiceImpl implements ArticleService {
                 .distinct()
                 .collect(Collectors.toList());
 
-        List<Category> categories = categoryMapper.selectBatchIds(categoryIds);
-        Map<Long, Category> categoryMap = categories.stream()
-                .collect(Collectors.toMap(Category::getId, c -> c));
+        Map<Long, CategoryVO> categoryMap = categoryService.getCategoryMapByIds(categoryIds);
 
         // 批量查询文章标签
         List<Long> articleIds = articles.stream()
@@ -462,7 +478,7 @@ public class ArticleServiceImpl implements ArticleService {
                 })
                 .map(article -> {
                     User author = userMap.get(article.getUserId());
-                    Category category = categoryMap.get(article.getCategoryId());
+                    CategoryVO category = categoryMap.get(article.getCategoryId());
                     List<Tag> tags = articleTagsMap.getOrDefault(article.getId(), new ArrayList<>());
 
                     List<TagVO> tagVOList = tags.stream()
@@ -481,7 +497,9 @@ public class ArticleServiceImpl implements ArticleService {
                             .categoryName(category != null ? category.getName() : null)
                             .tags(tagVOList)
                             .authorId(article.getUserId())
-                            .authorName(author != null ? (author.getNickname() != null ? author.getNickname() : author.getUsername()) : null)
+                            .authorName(author != null
+                                    ? (author.getNickname() != null ? author.getNickname() : author.getUsername())
+                                    : null)
                             .authorAvatar(author != null ? author.getAvatar() : null)
                             .viewCount(article.getViewCount())
                             .likeCount(article.getLikeCount())
@@ -527,9 +545,7 @@ public class ArticleServiceImpl implements ArticleService {
                         ArticleTag::getArticleId,
                         Collectors.mapping(
                                 at -> tagMap.get(at.getTagId()),
-                                Collectors.toList()
-                        )
-                ));
+                                Collectors.toList())));
     }
 
     @Override

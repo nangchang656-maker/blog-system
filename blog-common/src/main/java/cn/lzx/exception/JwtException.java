@@ -1,36 +1,27 @@
 package cn.lzx.exception;
 
-import lombok.Data;
-import lombok.EqualsAndHashCode;
-import lombok.NoArgsConstructor;
+import cn.lzx.constants.CommonConstants;
 
-
-@Data
-@NoArgsConstructor
-// 考虑父类的属性,正确处理继承关系中的对象相等性判断
-@EqualsAndHashCode(callSuper = true)
-public class JwtException extends RuntimeException {
+/**
+ * JWT认证异常
+ * 用于处理JWT相关的异常，如token无效、过期等
+ *
+ * @author lzx
+ * @since 2025-10-31
+ */
+public class JwtException extends BaseException {
 
     private static final long serialVersionUID = 1L;
 
-    private Integer code;
-    private String msg;
-
     public JwtException(String msg) {
-        super(msg);
-        this.code = 401;
-        this.msg = msg;
+        super(CommonConstants.UNAUTHORIZED, msg);
     }
 
     public JwtException(Integer code, String msg) {
-        super(msg);
-        this.code = code;
-        this.msg = msg;
+        super(code, msg);
     }
 
     public JwtException(String msg, Throwable cause) {
-        super(msg, cause);
-        this.code = 401;
-        this.msg = msg;
+        super(CommonConstants.UNAUTHORIZED, msg, cause);
     }
 }

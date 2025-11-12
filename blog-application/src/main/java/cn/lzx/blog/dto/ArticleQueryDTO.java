@@ -1,5 +1,6 @@
 package cn.lzx.blog.dto;
 
+import cn.lzx.constants.ArticleOrderConstants;
 import lombok.Data;
 
 /**
@@ -29,12 +30,12 @@ public class ArticleQueryDTO {
     /**
      * 排序字段：create_time, view_count, like_count
      */
-    private String orderBy = "create_time";
+    private String orderBy = ArticleOrderConstants.OrderBy.CREATE_TIME;
 
     /**
      * 排序方式：asc, desc
      */
-    private String orderType = "desc";
+    private String orderType = ArticleOrderConstants.OrderType.DESC;
 
     /**
      * 当前页码

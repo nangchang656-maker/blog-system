@@ -233,40 +233,4 @@ public class RedisUtil {
     public Double zScore(String key, Object value) {
         return redisTemplate.opsForZSet().score(key, value);
     }
-
-    // ========== 黑名单操作 ==========
-
-    /**
-     * 将Token加入黑名单（使用Set存储）
-     *
-     * @param key Redis键
-     * @param token Token值
-     * @param timeout 过期时间
-     * @param unit 时间单位
-     */
-    public void addToBlacklist(String key, String token, long timeout, TimeUnit unit) {
-        redisTemplate.opsForSet().add(key, token);
-        redisTemplate.expire(key, timeout, unit);
-    }
-
-    /**
-     * 检查Token是否在黑名单中
-     *
-     * @param key Redis键
-     * @param token Token值
-     * @return true-在黑名单中 false-不在黑名单中
-     */
-    public Boolean isInBlacklist(String key, String token) {
-        return redisTemplate.opsForSet().isMember(key, token);
-    }
-
-    /**
-     * 从黑名单中移除Token
-     *
-     * @param key Redis键
-     * @param token Token值
-     */
-    public Long removeFromBlacklist(String key, String token) {
-        return redisTemplate.opsForSet().remove(key, token);
-    }
 }

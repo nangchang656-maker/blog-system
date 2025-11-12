@@ -22,7 +22,7 @@ import cn.lzx.constants.CommonConstants;
 import cn.lzx.entity.Article;
 import cn.lzx.entity.Comment;
 import cn.lzx.entity.User;
-import cn.lzx.exception.CommonException;
+import cn.lzx.exception.BusinessException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -49,7 +49,7 @@ public class CommentServiceImpl implements CommentService {
         // 1. 验证文章是否存在
         Article article = articleMapper.selectById(dto.getArticleId());
         if (article == null) {
-            throw new CommonException("文章不存在");
+            throw new BusinessException("文章不存在");
         }
 
         // 2. 处理父评论和根评论
@@ -61,12 +61,12 @@ public class CommentServiceImpl implements CommentService {
             // 回复评论：验证父评论是否存在
             Comment parentComment = commentMapper.selectById(parentId);
             if (parentComment == null || parentComment.getDeleted() == 1) {
-                throw new CommonException("父评论不存在");
+                throw new BusinessException("父评论不存在");
             }
 
             // 验证父评论是否属于同一篇文章
             if (!parentComment.getArticleId().equals(dto.getArticleId())) {
-                throw new CommonException("父评论不属于该文章");
+                throw new BusinessException("父评论不属于该文章");
             }
 
             // 确定根评论ID
@@ -75,7 +75,7 @@ public class CommentServiceImpl implements CommentService {
             // 验证评论深度（限制不能太深）
             int currentDepth = calculateDepth(parentId, rootId);
             if (currentDepth >= CommonConstants.COMMENT_MAX_DEPTH) {
-                throw new CommonException("评论深度不能超过" + CommonConstants.COMMENT_MAX_DEPTH + "层");
+                throw new BusinessException("评论深度不能超过" + CommonConstants.COMMENT_MAX_DEPTH + "层");
             }
 
             // 如果没有指定toUserId，默认回复父评论的作者
@@ -98,10 +98,11 @@ public class CommentServiceImpl implements CommentService {
 
         int result = commentMapper.insert(comment);
         if (result <= 0) {
-            throw new CommonException("评论失败");
+            throw new BusinessException("评论失败");
         }
 
         // 4. 增加文章评论数
+        // TODO: 这些数据存储redis
         articleService.incrementCommentCount(dto.getArticleId());
 
         log.info("用户[{}]在文章[{}]下创建评论[{}]成功", userId, dto.getArticleId(), comment.getId());
@@ -149,18 +150,18 @@ public class CommentServiceImpl implements CommentService {
         // 1. 查询评论
         Comment comment = commentMapper.selectById(commentId);
         if (comment == null || comment.getDeleted() == 1) {
-            throw new CommonException("评论不存在");
+            throw new BusinessException("评论不存在");
         }
 
         // 2. 验证权限（只能删除自己的评论）
         if (!comment.getUserId().equals(userId)) {
-            throw new CommonException("无权限删除此评论");
+            throw new BusinessException("无权限删除此评论");
         }
 
         // 3. 逻辑删除评论
         int result = commentMapper.deleteById(commentId);
         if (result <= 0) {
-            throw new CommonException("删除评论失败");
+            throw new BusinessException("删除评论失败");
         }
 
         // 4. 减少文章评论数
@@ -212,6 +213,7 @@ public class CommentServiceImpl implements CommentService {
         if (userId != null) {
             // 这里需要查询like_record表，但LikeRecordMapper没有批量查询方法
             // 暂时使用循环查询，后续可以优化
+            // TODO: 可优化
             List<Long> allCommentIds = new ArrayList<>();
             rootComments.forEach(c -> allCommentIds.add(c.getId()));
             allReplies.forEach(c -> allCommentIds.add(c.getId()));

@@ -41,7 +41,7 @@ public class EmailSendUtil {
      * @param code 验证码
      */
     public void sendVerificationCode(String to, String code) {
-        String subject = "验证码";
+        String subject = "智墨博客-注册验证码";
         String content = "您的验证码是：" + code + "，请在5分钟内使用。";
         sendEmail(to, subject, content);
     }

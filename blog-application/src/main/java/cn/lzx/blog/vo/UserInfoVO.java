@@ -1,11 +1,11 @@
 package cn.lzx.blog.vo;
 
+import java.time.LocalDateTime;
+
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-
-import java.time.LocalDateTime;
 
 /**
  * 用户信息VO
@@ -28,7 +28,10 @@ public class UserInfoVO {
 
     private String avatar;
 
-    private String bio;
+    /**
+     * 个人简介
+     */
+    private String intro;
 
     private LocalDateTime createTime;
 
@@ -38,11 +41,6 @@ public class UserInfoVO {
      * 文章数
      */
     private Long articleCount;
-
-    /**
-     * 获赞数（用户所有文章的点赞数总和）
-     */
-    private Long likeCount;
 
     /**
      * 收藏数（用户收藏的文章数量）

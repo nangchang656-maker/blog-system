@@ -13,7 +13,7 @@ import cn.lzx.blog.vo.admin.CommentManageVO;
 import cn.lzx.blog.vo.admin.StatisticsVO;
 import cn.lzx.blog.vo.admin.UserManageVO;
 import cn.lzx.constants.AdminConstants;
-import cn.lzx.exception.CommonException;
+import cn.lzx.exception.BusinessException;
 import cn.lzx.utils.R;
 import cn.lzx.utils.SecurityContextUtil;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
@@ -47,10 +47,10 @@ public class AdminController {
     private void checkAdminPermission() {
         Long userId = SecurityContextUtil.getCurrentUserId();
         if (userId == null) {
-            throw new CommonException("用户未登录");
+            throw new BusinessException("用户未登录");
         }
         if (!AdminConstants.isAdmin(userId)) {
-            throw new CommonException("无权限访问");
+            throw new BusinessException("无权限访问");
         }
     }
 

@@ -167,6 +167,7 @@ const goToLogin = () => {
             placeholder="用户名"
             prefix-icon="User"
             clearable
+            @keyup.enter="handleRegister"
           />
         </el-form-item>
 
@@ -176,6 +177,7 @@ const goToLogin = () => {
             placeholder="邮箱"
             prefix-icon="Message"
             clearable
+            @keyup.enter="handleRegister"
           />
         </el-form-item>
 
@@ -188,6 +190,7 @@ const goToLogin = () => {
               maxlength="6"
               clearable
               style="flex: 1"
+              @keyup.enter="handleRegister"
             />
             <el-button
               :disabled="countdown > 0"
@@ -205,6 +208,7 @@ const goToLogin = () => {
             placeholder="手机号（可选）"
             prefix-icon="Phone"
             clearable
+            @keyup.enter="handleRegister"
           />
         </el-form-item>
 
@@ -215,6 +219,7 @@ const goToLogin = () => {
             placeholder="密码"
             prefix-icon="Lock"
             show-password
+            @keyup.enter="handleRegister"
           />
         </el-form-item>
 
@@ -225,6 +230,7 @@ const goToLogin = () => {
             placeholder="确认密码"
             prefix-icon="Lock"
             show-password
+            @keyup.enter="handleRegister"
           />
         </el-form-item>
 

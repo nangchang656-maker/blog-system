@@ -1,12 +1,13 @@
 package cn.lzx.utils;
 
-import javax.crypto.Cipher;
-import javax.crypto.spec.IvParameterSpec;
-import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.Arrays;
 import java.util.Base64;
+
+import javax.crypto.Cipher;
+import javax.crypto.spec.IvParameterSpec;
+import javax.crypto.spec.SecretKeySpec;
 
 /**
  * AES加密解密工具类
@@ -18,9 +19,14 @@ public class AesUtil {
 
     private static final String ALGORITHM = "AES/CBC/PKCS5Padding";
     private static final String SECRET_KEY = "MyBlogSecretKey2025"; // 与前端保持一致
+    private static final String SALTED_PREFIX = "Salted__";
+    private static final int SALT_LENGTH = 8;
+    private static final int KEY_LENGTH = 32; // AES-256
+    private static final int IV_LENGTH = 16; // AES block size
 
     /**
      * AES解密（兼容CryptoJS）
+     * 
      * @param encryptedData 前端CryptoJS加密的数据
      * @return 解密后的明文
      */
@@ -30,16 +36,20 @@ public class AesUtil {
             byte[] encryptedBytes = Base64.getDecoder().decode(encryptedData);
 
             // 2. CryptoJS格式：前8字节是"Salted__"，接下来8字节是salt
-            if (encryptedBytes.length < 16 ||
-                !new String(Arrays.copyOfRange(encryptedBytes, 0, 8), StandardCharsets.UTF_8).equals("Salted__")) {
+            if (encryptedBytes.length < SALTED_PREFIX.length() + SALT_LENGTH ||
+                    !new String(Arrays.copyOfRange(encryptedBytes, 0, SALTED_PREFIX.length()), StandardCharsets.UTF_8)
+                            .equals(SALTED_PREFIX)) {
                 throw new RuntimeException("不是有效的CryptoJS加密格式");
             }
 
-            byte[] salt = Arrays.copyOfRange(encryptedBytes, 8, 16);
-            byte[] cipherText = Arrays.copyOfRange(encryptedBytes, 16, encryptedBytes.length);
+            byte[] salt = Arrays.copyOfRange(encryptedBytes, SALTED_PREFIX.length(),
+                    SALTED_PREFIX.length() + SALT_LENGTH);
+            byte[] cipherText = Arrays.copyOfRange(encryptedBytes, SALTED_PREFIX.length() + SALT_LENGTH,
+                    encryptedBytes.length);
 
             // 3. 使用EVP_BytesToKey算法派生密钥和IV（与CryptoJS一致）
-            byte[][] keyAndIv = deriveKeyAndIv(SECRET_KEY.getBytes(StandardCharsets.UTF_8), salt, 32, 16);
+            byte[][] keyAndIv = deriveKeyAndIv(SECRET_KEY.getBytes(StandardCharsets.UTF_8), salt, KEY_LENGTH,
+                    IV_LENGTH);
             byte[] key = keyAndIv[0];
             byte[] iv = keyAndIv[1];
 
@@ -59,17 +69,19 @@ public class AesUtil {
 
     /**
      * AES加密（兼容CryptoJS）
+     * 
      * @param data 明文数据
      * @return 加密后的字符串
      */
     public static String encrypt(String data) {
         try {
             // 1. 生成随机salt
-            byte[] salt = new byte[8];
+            byte[] salt = new byte[SALT_LENGTH];
             new java.security.SecureRandom().nextBytes(salt);
 
             // 2. 使用EVP_BytesToKey算法派生密钥和IV
-            byte[][] keyAndIv = deriveKeyAndIv(SECRET_KEY.getBytes(StandardCharsets.UTF_8), salt, 32, 16);
+            byte[][] keyAndIv = deriveKeyAndIv(SECRET_KEY.getBytes(StandardCharsets.UTF_8), salt, KEY_LENGTH,
+                    IV_LENGTH);
             byte[] key = keyAndIv[0];
             byte[] iv = keyAndIv[1];
 
@@ -83,10 +95,10 @@ public class AesUtil {
             byte[] encryptedBytes = cipher.doFinal(data.getBytes(StandardCharsets.UTF_8));
 
             // 4. 构造CryptoJS格式：Salted__ + salt + cipherText
-            byte[] result = new byte[8 + salt.length + encryptedBytes.length];
-            System.arraycopy("Salted__".getBytes(StandardCharsets.UTF_8), 0, result, 0, 8);
-            System.arraycopy(salt, 0, result, 8, salt.length);
-            System.arraycopy(encryptedBytes, 0, result, 16, encryptedBytes.length);
+            byte[] result = new byte[SALTED_PREFIX.length() + salt.length + encryptedBytes.length];
+            System.arraycopy(SALTED_PREFIX.getBytes(StandardCharsets.UTF_8), 0, result, 0, SALTED_PREFIX.length());
+            System.arraycopy(salt, 0, result, SALTED_PREFIX.length(), salt.length);
+            System.arraycopy(encryptedBytes, 0, result, SALTED_PREFIX.length() + salt.length, encryptedBytes.length);
 
             // 5. Base64编码
             return Base64.getEncoder().encodeToString(result);
@@ -99,9 +111,9 @@ public class AesUtil {
      * EVP_BytesToKey算法实现（OpenSSL/CryptoJS使用的密钥派生算法）
      *
      * @param password 密码
-     * @param salt 盐值
-     * @param keyLen 密钥长度（字节）
-     * @param ivLen IV长度（字节）
+     * @param salt     盐值
+     * @param keyLen   密钥长度（字节）
+     * @param ivLen    IV长度（字节）
      * @return [key, iv]
      */
     private static byte[][] deriveKeyAndIv(byte[] password, byte[] salt, int keyLen, int ivLen) throws Exception {

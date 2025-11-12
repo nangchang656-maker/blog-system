@@ -14,8 +14,6 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class UserLoginVO {
 
-    private String token; // JWT accessToken (向后兼容，等同于accessToken)
-
     private String accessToken; // JWT accessToken
 
     private String refreshToken; // RefreshToken

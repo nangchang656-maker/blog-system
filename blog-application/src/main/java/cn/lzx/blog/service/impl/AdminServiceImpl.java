@@ -16,7 +16,7 @@ import cn.lzx.blog.vo.admin.StatisticsVO;
 import cn.lzx.blog.vo.admin.UserManageVO;
 import cn.lzx.constants.CommonConstants;
 import cn.lzx.entity.*;
-import cn.lzx.exception.CommonException;
+import cn.lzx.exception.BusinessException;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
@@ -57,13 +57,13 @@ public class AdminServiceImpl implements AdminService {
         // 1. 验证文章是否存在
         Article article = articleMapper.selectById(dto.getArticleId());
         if (article == null) {
-            throw new CommonException("文章不存在");
+            throw new BusinessException("文章不存在");
         }
 
         // 2. 验证分类是否存在
         Category category = categoryMapper.selectById(dto.getCategoryId());
         if (category == null) {
-            throw new CommonException("分类不存在");
+            throw new BusinessException("分类不存在");
         }
 
         // 3. 更新文章分类
@@ -82,7 +82,7 @@ public class AdminServiceImpl implements AdminService {
         // 1. 验证文章是否存在
         Article article = articleMapper.selectById(dto.getArticleId());
         if (article == null) {
-            throw new CommonException("文章不存在");
+            throw new BusinessException("文章不存在");
         }
 
         // 2. 删除原有标签关联
@@ -95,7 +95,7 @@ public class AdminServiceImpl implements AdminService {
             // 验证所有标签是否存在
             List<Tag> tags = tagMapper.selectBatchIds(dto.getTagIds());
             if (tags.size() != dto.getTagIds().size()) {
-                throw new CommonException("部分标签不存在");
+                throw new BusinessException("部分标签不存在");
             }
 
             // 添加新的标签关联
@@ -225,14 +225,14 @@ public class AdminServiceImpl implements AdminService {
         // 验证文章是否存在
         Article article = articleMapper.selectById(dto.getArticleId());
         if (article == null) {
-            throw new CommonException("文章不存在");
+            throw new BusinessException("文章不存在");
         }
 
         // 验证状态值
         if (dto.getStatus() != CommonConstants.ARTICLE_STATUS_DRAFT
                 && dto.getStatus() != CommonConstants.ARTICLE_STATUS_PUBLISHED
                 && dto.getStatus() != CommonConstants.ARTICLE_STATUS_BLOCKED) {
-            throw new CommonException("状态值无效");
+            throw new BusinessException("状态值无效");
         }
 
         // 更新文章状态
@@ -304,12 +304,12 @@ public class AdminServiceImpl implements AdminService {
         // 验证用户是否存在
         User user = userMapper.selectById(userId);
         if (user == null) {
-            throw new CommonException("用户不存在");
+            throw new BusinessException("用户不存在");
         }
 
         // 验证状态值
         if (status != CommonConstants.USER_STATUS_NORMAL && status != CommonConstants.USER_STATUS_DISABLED) {
-            throw new CommonException("状态值无效");
+            throw new BusinessException("状态值无效");
         }
 
         // 更新用户状态
@@ -406,13 +406,13 @@ public class AdminServiceImpl implements AdminService {
         // 验证评论是否存在
         Comment comment = commentMapper.selectById(dto.getCommentId());
         if (comment == null) {
-            throw new CommonException("评论不存在");
+            throw new BusinessException("评论不存在");
         }
 
         // 验证状态值
         if (dto.getStatus() != CommonConstants.COMMENT_STATUS_NORMAL
                 && dto.getStatus() != CommonConstants.COMMENT_STATUS_HIDDEN) {
-            throw new CommonException("状态值无效");
+            throw new BusinessException("状态值无效");
         }
 
         // 更新评论状态
@@ -431,7 +431,7 @@ public class AdminServiceImpl implements AdminService {
         // 验证评论是否存在
         Comment comment = commentMapper.selectById(commentId);
         if (comment == null) {
-            throw new CommonException("评论不存在");
+            throw new BusinessException("评论不存在");
         }
 
         // 逻辑删除评论
@@ -550,7 +550,7 @@ public class AdminServiceImpl implements AdminService {
         wrapper.eq(Category::getName, dto.getName());
         Category existCategory = categoryMapper.selectOne(wrapper);
         if (existCategory != null) {
-            throw new CommonException("分类名称已存在");
+            throw new BusinessException("分类名称已存在");
         }
 
         Category category = Category.builder()
@@ -569,7 +569,7 @@ public class AdminServiceImpl implements AdminService {
         // 验证分类是否存在
         Category category = categoryMapper.selectById(dto.getId());
         if (category == null) {
-            throw new CommonException("分类不存在");
+            throw new BusinessException("分类不存在");
         }
 
         // 检查分类名称是否与其他分类重复
@@ -578,7 +578,7 @@ public class AdminServiceImpl implements AdminService {
                 .ne(Category::getId, dto.getId());
         Category existCategory = categoryMapper.selectOne(wrapper);
         if (existCategory != null) {
-            throw new CommonException("分类名称已存在");
+            throw new BusinessException("分类名称已存在");
         }
 
         Category updateCategory = Category.builder()
@@ -597,7 +597,7 @@ public class AdminServiceImpl implements AdminService {
         // 验证分类是否存在
         Category category = categoryMapper.selectById(categoryId);
         if (category == null) {
-            throw new CommonException("分类不存在");
+            throw new BusinessException("分类不存在");
         }
 
         // 检查是否有文章使用该分类
@@ -605,7 +605,7 @@ public class AdminServiceImpl implements AdminService {
         articleWrapper.eq(Article::getCategoryId, categoryId);
         Long articleCount = articleMapper.selectCount(articleWrapper).longValue();
         if (articleCount > 0) {
-            throw new CommonException("该分类下还有" + articleCount + "篇文章，无法删除");
+            throw new BusinessException("该分类下还有" + articleCount + "篇文章，无法删除");
         }
 
         // 逻辑删除分类
@@ -646,7 +646,7 @@ public class AdminServiceImpl implements AdminService {
         wrapper.eq(Tag::getName, dto.getName());
         Tag existTag = tagMapper.selectOne(wrapper);
         if (existTag != null) {
-            throw new CommonException("标签名称已存在");
+            throw new BusinessException("标签名称已存在");
         }
 
         Tag tag = Tag.builder()
@@ -664,7 +664,7 @@ public class AdminServiceImpl implements AdminService {
         // 验证标签是否存在
         Tag tag = tagMapper.selectById(dto.getId());
         if (tag == null) {
-            throw new CommonException("标签不存在");
+            throw new BusinessException("标签不存在");
         }
 
         // 检查标签名称是否与其他标签重复
@@ -673,7 +673,7 @@ public class AdminServiceImpl implements AdminService {
                 .ne(Tag::getId, dto.getId());
         Tag existTag = tagMapper.selectOne(wrapper);
         if (existTag != null) {
-            throw new CommonException("标签名称已存在");
+            throw new BusinessException("标签名称已存在");
         }
 
         Tag updateTag = Tag.builder()
@@ -691,7 +691,7 @@ public class AdminServiceImpl implements AdminService {
         // 验证标签是否存在
         Tag tag = tagMapper.selectById(tagId);
         if (tag == null) {
-            throw new CommonException("标签不存在");
+            throw new BusinessException("标签不存在");
         }
 
         // 删除标签与文章的关联关系

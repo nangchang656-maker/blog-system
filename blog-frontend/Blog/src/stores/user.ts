@@ -1,8 +1,9 @@
-import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
-import { loginApi, logoutApi, getUserInfoApi } from '@/api/user'
 import type { LoginParams, UserInfo } from '@/api/user'
+import { getUserInfoApi, loginApi, logoutApi } from '@/api/user'
+import { ADMIN_USER_IDS } from '@/constants/user'
 import { ElMessage } from 'element-plus'
+import { defineStore } from 'pinia'
+import { computed, ref } from 'vue'
 
 export const useUserStore = defineStore(
   'user',
@@ -17,9 +18,7 @@ export const useUserStore = defineStore(
     const isLoggedIn = computed(() => !!token.value)
 
     // 计算属性：是否为管理员（ID为1或2）
-    const isAdmin = computed(() => {
-      return userId.value === 1 || userId.value === 2
-    })
+    const isAdmin = computed(() => ADMIN_USER_IDS.includes(userId.value ?? -1))
 
     // 登录
     const login = async (params: LoginParams) => {
@@ -27,7 +26,7 @@ export const useUserStore = defineStore(
         const res = await loginApi(params)
 
         // 保存 token 和用户信息（Pinia持久化插件会自动保存到localStorage）
-        token.value = res.token
+        token.value = res.accessToken
         refreshToken.value = res.refreshToken
         userId.value = res.userInfo.id
         userInfo.value = res.userInfo
@@ -67,13 +66,17 @@ export const useUserStore = defineStore(
       }
     }
 
-    // 更新 token（用于刷新token后更新）
-    const updateToken = (newToken: string, newRefreshToken?: string) => {
+    // 更新 token（用于刷新token后更新，RefreshToken保持不变）
+    const updateToken = (newToken: string) => {
       token.value = newToken
+    }
 
-      if (newRefreshToken) {
-        refreshToken.value = newRefreshToken
-      }
+    // 清空前端状态（不调用后端接口，用于token过期等情况）
+    const clearState = () => {
+      token.value = ''
+      refreshToken.value = ''
+      userId.value = null
+      userInfo.value = null
     }
 
     return {
@@ -86,7 +89,8 @@ export const useUserStore = defineStore(
       login,
       logout,
       getUserInfo,
-      updateToken
+      updateToken,
+      clearState
     }
   },
   {
@@ -95,7 +99,7 @@ export const useUserStore = defineStore(
       key: 'user-store',
       storage: localStorage,
       // 只持久化必要的字段
-      paths: ['token', 'refreshToken', 'userId', 'userInfo']
+      pick: ['token', 'refreshToken', 'userId', 'userInfo']
     }
   }
 )

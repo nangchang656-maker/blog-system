@@ -34,4 +34,20 @@ public interface CategoryService {
      * @return 分类ID
      */
     Long getOrCreateCategoryByName(String name);
+
+    /**
+     * 根据ID列表批量查询分类
+     *
+     * @param ids 分类ID列表
+     * @return 分类信息列表
+     */
+    java.util.List<CategoryVO> getCategoryListByIds(java.util.List<Long> ids);
+
+    /**
+     * 根据ID列表批量查询分类并转换为Map
+     *
+     * @param ids 分类ID列表
+     * @return 分类信息Map，key为分类ID
+     */
+    java.util.Map<Long, CategoryVO> getCategoryMapByIds(java.util.List<Long> ids);
 }

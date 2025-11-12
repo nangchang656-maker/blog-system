@@ -107,7 +107,7 @@ const formatTime = (time: string) => {
         <div class="user-info">
           <h2>{{ userStore.userInfo?.nickname || userStore.userInfo?.username }}</h2>
           <p class="username">@{{ userStore.userInfo?.username }}</p>
-          <p class="bio">{{ userStore.userInfo?.bio || '暂无个人简介' }}</p>
+          <p class="bio">{{ userStore.userInfo?.intro || '暂无个人简介' }}</p>
           <div class="stats">
             <div class="stat-item">
               <span class="count">{{ userStore.userInfo?.articleCount || 0 }}</span>
@@ -147,7 +147,7 @@ const formatTime = (time: string) => {
               {{ userStore.userInfo?.createTime || '-' }}
             </el-descriptions-item>
             <el-descriptions-item label="个人简介">
-              {{ userStore.userInfo?.bio || '-' }}
+              {{ userStore.userInfo?.intro || '-' }}
             </el-descriptions-item>
           </el-descriptions>
         </el-tab-pane>

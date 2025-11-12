@@ -7,7 +7,7 @@ package cn.lzx.constants;
  * @since 2025-10-31
  */
 public class CommonConstants {
-
+    // ======================== 状态码 =========================
     /**
      * 成功状态码
      */
@@ -33,6 +33,7 @@ public class CommonConstants {
      */
     public static final int NOT_FOUND = 404;
 
+    // ======================== 用户状态 =========================
     /**
      * 用户状态：正常
      */
@@ -43,6 +44,7 @@ public class CommonConstants {
      */
     public static final Integer USER_STATUS_DISABLED = 0;
 
+    // ======================== 文章状态 =========================
     /**
      * 文章状态：草稿
      */
@@ -68,16 +70,7 @@ public class CommonConstants {
      */
     public static final Integer IS_TOP = 1;
 
-    /**
-     * 是否删除：未删除
-     */
-    public static final Integer NOT_DELETED = 0;
-
-    /**
-     * 是否删除：已删除
-     */
-    public static final Integer DELETED = 1;
-
+    // ======================== 评论相关 =========================
     /**
      * 评论状态：正常显示
      */
@@ -93,4 +86,16 @@ public class CommonConstants {
      * 例如：深度为3表示：根评论 -> 一级回复 -> 二级回复
      */
     public static final int COMMENT_MAX_DEPTH = 3;
+
+    // ======================== 是否删除 =========================
+    /**
+     * 是否删除：未删除
+     */
+    public static final Integer NOT_DELETED = 0;
+
+    /**
+     * 是否删除：已删除
+     */
+    public static final Integer DELETED = 1;
+
 }

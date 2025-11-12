@@ -1,5 +1,7 @@
 package cn.lzx.blog.service;
 
+import org.springframework.web.multipart.MultipartFile;
+
 import cn.lzx.blog.dto.PasswordUpdateDTO;
 import cn.lzx.blog.dto.UserLoginDTO;
 import cn.lzx.blog.dto.UserRegisterDTO;
@@ -44,6 +46,21 @@ public interface UserService {
      * @param dto 更新信息
      */
     void updateUserInfo(Long userId, UserUpdateDTO dto);
+
+    /**
+     * 上传并更新用户头像
+     * @param file 头像文件
+     * @param userId 用户ID
+     * @return 头像URL
+     */
+    String uploadAvatar(MultipartFile file, Long userId);
+
+    /**
+     * 更新用户头像
+     * @param userId 用户ID
+     * @param avatarUrl 头像URL
+     */
+    void updateAvatar(Long userId, String avatarUrl);
 
     /**
      * 修改密码

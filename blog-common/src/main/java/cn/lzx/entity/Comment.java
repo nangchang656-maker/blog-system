@@ -31,14 +31,14 @@ public class Comment implements Serializable {
     private Long id;
 
     /**
-     * 文章ID
-     */
-    private Long articleId;
-
-    /**
      * 用户ID
      */
     private Long userId;
+
+    /**
+     * 文章ID
+     */
+    private Long articleId;
 
     /**
      * 评论内容
@@ -46,14 +46,14 @@ public class Comment implements Serializable {
     private String content;
 
     /**
-     * 父评论ID（0表示一级评论）
-     */
-    private Long parentId;
-
-    /**
      * 根评论ID
      */
     private Long rootId;
+
+    /**
+     * 父评论ID（0表示一级评论）
+     */
+    private Long parentId;
 
     /**
      * 回复的用户ID
@@ -79,12 +79,10 @@ public class Comment implements Serializable {
     /**
      * 创建时间
      */
-    @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createTime;
 
     /**
      * 更新时间
      */
-    @TableField(fill = FieldFill.INSERT_UPDATE)
     private LocalDateTime updateTime;
 }

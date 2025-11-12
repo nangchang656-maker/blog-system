@@ -6,6 +6,13 @@ export interface LoginParams {
   password: string
 }
 
+// 登录响应
+export interface LoginResponse {
+    accessToken: string
+    refreshToken: string
+    userInfo: UserInfo
+}
+
 // 用户注册请求参数
 export interface RegisterParams {
   username: string
@@ -23,7 +30,7 @@ export interface UserInfo {
   phone?: string
   nickname?: string
   avatar?: string
-  bio?: string
+  intro?: string
   createTime?: string
   articleCount?: number
   collectCount?: number
@@ -32,10 +39,8 @@ export interface UserInfo {
 // 修改用户信息参数
 export interface UpdateUserParams {
   nickname?: string
-  email?: string
   phone?: string
-  avatar?: string
-  bio?: string
+  intro?: string
 }
 
 // 修改密码参数
@@ -76,7 +81,7 @@ export const registerApi = (data: RegisterParams) => {
  * 用户登录
  */
 export const loginApi = (data: LoginParams) => {
-  return request.post<any, { token: string; userInfo: UserInfo }>('/api/user/login', data)
+  return request.post<any, LoginResponse>('/api/user/login', data)
 }
 
 /**

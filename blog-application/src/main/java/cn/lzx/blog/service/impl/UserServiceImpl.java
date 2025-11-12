@@ -1,5 +1,16 @@
 package cn.lzx.blog.service.impl;
 
+import java.util.Map;
+import java.util.Random;
+import java.util.concurrent.TimeUnit;
+
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
+
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+
 import cn.lzx.blog.dto.PasswordUpdateDTO;
 import cn.lzx.blog.dto.UserLoginDTO;
 import cn.lzx.blog.dto.UserRegisterDTO;
@@ -7,9 +18,11 @@ import cn.lzx.blog.dto.UserUpdateDTO;
 import cn.lzx.blog.mapper.ArticleMapper;
 import cn.lzx.blog.mapper.CollectMapper;
 import cn.lzx.blog.mapper.UserMapper;
+import cn.lzx.blog.service.FileUploadService;
 import cn.lzx.blog.service.UserService;
 import cn.lzx.blog.vo.UserInfoVO;
 import cn.lzx.blog.vo.UserLoginVO;
+import cn.lzx.constants.CommonConstants;
 import cn.lzx.entity.Article;
 import cn.lzx.entity.Collect;
 import cn.lzx.entity.User;
@@ -19,17 +32,8 @@ import cn.lzx.service.TokenService;
 import cn.lzx.utils.AesUtil;
 import cn.lzx.utils.EmailSendUtil;
 import cn.lzx.utils.RedisUtil;
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
-import java.util.List;
-import java.util.Map;
-import java.util.Random;
-import java.util.concurrent.TimeUnit;
 
 /**
  * 用户Service实现类
@@ -46,6 +50,7 @@ public class UserServiceImpl implements UserService {
     private final EmailSendUtil emailSendUtil;
     private final PasswordEncoder passwordEncoder;
     private final TokenService tokenService;
+    private final FileUploadService fileUploadService;
 
     @Override
     public void sendEmailCode(String email) {
@@ -125,7 +130,7 @@ public class UserServiceImpl implements UserService {
         LambdaQueryWrapper<User> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(User::getUsername, dto.getUsername())
                 .or().eq(User::getEmail, dto.getUsername());
-                // .or().eq(User::getPhone, dto.getUsername()) // 当前手机号没进行短信验证,不具备一对一对应关系
+        // .or().eq(User::getPhone, dto.getUsername()) // 当前手机号没进行短信验证,不具备一对一对应关系
         User user = userMapper.selectOne(wrapper);
 
         if (user == null) {
@@ -157,7 +162,6 @@ public class UserServiceImpl implements UserService {
         // 6. 构建返回数据
         UserInfoVO userInfo = convertToUserInfoVO(user);
         UserLoginVO loginVO = UserLoginVO.builder()
-                .token(tokenMap.get("accessToken"))  // 向后兼容
                 .accessToken(tokenMap.get("accessToken"))
                 .refreshToken(tokenMap.get("refreshToken"))
                 .userInfo(userInfo)
@@ -185,18 +189,47 @@ public class UserServiceImpl implements UserService {
             throw new BusinessException("用户不存在");
         }
 
-        // 2. 更新用户信息（邮箱不能更新）
+        // 2. 更新用户信息（邮箱和头像不更新）
         User updateUser = User.builder()
                 .id(userId)
                 .nickname(dto.getNickname())
                 .phone(dto.getPhone())
-                .avatar(dto.getAvatar())
-                .intro(dto.getBio()) // DTO的bio对应数据库的intro
+                .intro(dto.getIntro())
                 .build();
 
         userMapper.updateById(updateUser);
 
         log.info("用户信息更新成功: userId={}", userId);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public String uploadAvatar(MultipartFile file, Long userId) {
+        // 1. 上传文件到MinIO
+        String fileUrl = fileUploadService.uploadAvatar(file, userId);
+        // 2. 更新数据库中的头像URL
+        updateAvatar(userId, fileUrl);
+        return fileUrl;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void updateAvatar(Long userId, String avatarUrl) {
+        // 1. 查询用户是否存在
+        User user = userMapper.selectById(userId);
+        if (user == null) {
+            throw new BusinessException("用户不存在");
+        }
+
+        // 2. 更新头像URL
+        User updateUser = User.builder()
+                .id(userId)
+                .avatar(avatarUrl)
+                .build();
+
+        userMapper.updateById(updateUser);
+
+        log.info("用户头像更新成功: userId={}, avatarUrl={}", userId, avatarUrl);
     }
 
     @Override
@@ -254,21 +287,13 @@ public class UserServiceImpl implements UserService {
      * 将User实体转换为UserInfoVO
      */
     private UserInfoVO convertToUserInfoVO(User user) {
-        // 1. 统计文章数（所有文章，包括草稿和已发布的）
+        // 1. 统计文章数（已发布的）
         LambdaQueryWrapper<Article> articleWrapper = new LambdaQueryWrapper<>();
-        articleWrapper.eq(Article::getUserId, user.getId());
+        articleWrapper.eq(Article::getUserId, user.getId())
+                .eq(Article::getStatus, CommonConstants.ARTICLE_STATUS_PUBLISHED);
         Long articleCount = articleMapper.selectCount(articleWrapper);
 
-        // 2. 统计获赞数（用户所有文章的点赞数总和）
-        LambdaQueryWrapper<Article> likeWrapper = new LambdaQueryWrapper<>();
-        likeWrapper.eq(Article::getUserId, user.getId())
-                .eq(Article::getStatus, 1);
-        List<Article> articles = articleMapper.selectList(likeWrapper);
-        Long likeCount = articles.stream()
-                .mapToLong(article -> article.getLikeCount() != null ? article.getLikeCount() : 0)
-                .sum();
-
-        // 3. 统计收藏数（用户收藏的文章数量）
+        // 2. 统计收藏数（用户收藏的文章数量）
         LambdaQueryWrapper<Collect> collectWrapper = new LambdaQueryWrapper<>();
         collectWrapper.eq(Collect::getUserId, user.getId());
         Long collectCount = collectMapper.selectCount(collectWrapper);
@@ -280,11 +305,10 @@ public class UserServiceImpl implements UserService {
                 .email(user.getEmail())
                 .phone(user.getPhone())
                 .avatar(user.getAvatar())
-                .bio(user.getIntro()) // 数据库的intro对应VO的bio
+                .intro(user.getIntro())
                 .createTime(user.getCreateTime())
                 .updateTime(user.getUpdateTime())
                 .articleCount(articleCount)
-                .likeCount(likeCount)
                 .collectCount(collectCount)
                 .build();
     }

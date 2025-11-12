@@ -1,18 +1,20 @@
 package cn.lzx.utils;
 
-import io.jsonwebtoken.Claims;
-import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.security.Keys;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Component;
-
-import cn.lzx.constants.SecurityConstants;
-
-import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
+
+import javax.crypto.SecretKey;
+
+import org.springframework.stereotype.Component;
+
+import cn.lzx.constants.SecurityConstants;
+import cn.lzx.exception.JwtException;
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.security.Keys;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * JWT工具类
@@ -22,7 +24,8 @@ import java.util.Map;
 @Slf4j
 @Component
 public class JwtTokenUtil {
-    private final SecretKey secretKey = Keys.hmacShaKeyFor(SecurityConstants.JWT_SECRET.getBytes(StandardCharsets.UTF_8));
+    private final SecretKey secretKey = Keys
+            .hmacShaKeyFor(SecurityConstants.JWT_SECRET.getBytes(StandardCharsets.UTF_8));
 
     /**
      * 生成AccessToken
@@ -62,6 +65,7 @@ public class JwtTokenUtil {
      *
      * @param token JWT Token
      * @return Claims
+     * @throws JwtException 解析失败时抛出异常
      */
     public Claims parseToken(String token) {
         try {
@@ -72,7 +76,7 @@ public class JwtTokenUtil {
                     .getPayload();
         } catch (Exception e) {
             log.error("JWT解析失败: {}", e.getMessage());
-            return null;
+            throw new JwtException("Token无效或已过期", e);
         }
     }
 
@@ -81,12 +85,10 @@ public class JwtTokenUtil {
      *
      * @param token JWT Token
      * @return 用户ID
+     * @throws JwtException Token无效时抛出异常
      */
     public Long getUserIdFromToken(String token) {
         Claims claims = parseToken(token);
-        if (claims == null) {
-            return null;
-        }
         Object userId = claims.get(SecurityConstants.JWT_CLAIM_USER_ID);
         if (userId instanceof Integer) {
             return ((Integer) userId).longValue();
@@ -99,10 +101,11 @@ public class JwtTokenUtil {
      *
      * @param token JWT Token
      * @return 用户名
+     * @throws JwtException Token无效时抛出异常
      */
     public String getUsernameFromToken(String token) {
         Claims claims = parseToken(token);
-        return claims != null ? claims.get(SecurityConstants.JWT_CLAIM_USERNAME, String.class) : null;
+        return claims.get(SecurityConstants.JWT_CLAIM_USERNAME, String.class);
     }
 
     /**
@@ -110,60 +113,25 @@ public class JwtTokenUtil {
      *
      * @param token JWT Token
      * @return true-已过期 false-未过期
+     * @throws JwtException Token无效时抛出异常
      */
     public boolean isTokenExpired(String token) {
-        try {
-            Claims claims = parseToken(token);
-            if (claims == null) {
-                return true;
-            }
-            Date expiration = claims.getExpiration();
-            return expiration.before(new Date());
-        } catch (Exception e) {
-            return true;
-        }
-    }
-
-    /**
-     * 验证Token是否有效
-     *
-     * @param token    JWT Token
-     * @param userId   用户ID
-     * @param username 用户名
-     * @return true-有效 false-无效
-     */
-    public boolean validateToken(String token, Long userId, String username) {
-        try {
-            Long tokenUserId = getUserIdFromToken(token);
-            String tokenUsername = getUsernameFromToken(token);
-            return tokenUserId != null
-                    && tokenUserId.equals(userId)
-                    && tokenUsername != null
-                    && tokenUsername.equals(username)
-                    && !isTokenExpired(token);
-        } catch (Exception e) {
-            log.error("Token验证失败: {}", e.getMessage());
-            return false;
-        }
+        Claims claims = parseToken(token);
+        Date expiration = claims.getExpiration();
+        return expiration.before(new Date());
     }
 
     /**
      * 获取Token剩余有效时间（秒）
      *
      * @param token JWT Token
-     * @return 剩余有效时间（秒），-1表示已过期或无效
+     * @return 剩余有效时间（秒），已过期返回0
+     * @throws JwtException Token无效时抛出异常
      */
     public long getTokenRemainingTime(String token) {
-        try {
-            Claims claims = parseToken(token);
-            if (claims == null) {
-                return -1;
-            }
-            Date expiration = claims.getExpiration();
-            long remaining = (expiration.getTime() - System.currentTimeMillis()) / 1000;
-            return remaining > 0 ? remaining : -1;
-        } catch (Exception e) {
-            return -1;
-        }
+        Claims claims = parseToken(token);
+        Date expiration = claims.getExpiration();
+        long remaining = (expiration.getTime() - System.currentTimeMillis()) / 1000;
+        return Math.max(remaining, 0);
     }
 }

@@ -30,7 +30,7 @@ public class TagServiceImpl implements TagService {
     @Override
     public List<TagVO> getTagList() {
         LambdaQueryWrapper<Tag> wrapper = new LambdaQueryWrapper<>();
-        wrapper.orderByDesc(Tag::getCreateTime);
+        wrapper.orderByDesc(Tag::getId);
 
         List<Tag> tags = tagMapper.selectList(wrapper);
 

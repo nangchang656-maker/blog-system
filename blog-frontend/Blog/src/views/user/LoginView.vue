@@ -76,6 +76,7 @@ const goToRegister = () => {
             placeholder="用户名/邮箱/手机号(当前不支持)"
             prefix-icon="User"
             clearable
+            @keyup.enter="handleLogin"
           />
         </el-form-item>
 
@@ -86,6 +87,7 @@ const goToRegister = () => {
             placeholder="密码"
             prefix-icon="Lock"
             show-password
+            @keyup.enter="handleLogin"
           />
         </el-form-item>
 

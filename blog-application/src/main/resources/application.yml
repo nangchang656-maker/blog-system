@@ -76,10 +76,14 @@ mybatis-plus:
       logic-delete-field: deleted
       logic-delete-value: 1
       logic-not-delete-value: 0
-  # mapper 映射文件位置
   mapper-locations: classpath:mapper/*.xml
-  # 实体类别名扫描包
   type-aliases-package: cn.lzx.entity
+
+minio:
+  endpoint: http://localhost:9000
+  access-key: admin
+  secret-key: minioadmin
+  bucket-name: blog-files
 
 # Springdoc OpenAPI + Swagger UI 配置
 springdoc:
@@ -103,11 +107,6 @@ logging:
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{50} - %msg%n"
 
-minio:
-  endpoint: http://localhost:9000
-  access-key: admin
-  secret-key: minioadmin
-  bucket-name: blog-files
 
 # RocketMQ 配置 (暂时禁用)
 #rocketmq:

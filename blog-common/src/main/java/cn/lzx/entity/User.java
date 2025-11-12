@@ -1,13 +1,17 @@
 package cn.lzx.entity;
 
-import com.baomidou.mybatisplus.annotation.*;
+import java.io.Serializable;
+import java.time.LocalDateTime;
+
+import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableLogic;
+import com.baomidou.mybatisplus.annotation.TableName;
+
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-
-import java.io.Serializable;
-import java.time.LocalDateTime;
 
 /**
  * 用户实体类
@@ -41,14 +45,14 @@ public class User implements Serializable {
     private String password;
 
     /**
-     * 昵称
-     */
-    private String nickname;
-
-    /**
      * 头像URL
      */
     private String avatar;
+
+    /**
+     * 昵称
+     */
+    private String nickname;
 
     /**
      * 邮箱
@@ -79,12 +83,10 @@ public class User implements Serializable {
     /**
      * 创建时间
      */
-    @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createTime;
 
     /**
      * 更新时间
      */
-    @TableField(fill = FieldFill.INSERT_UPDATE)
     private LocalDateTime updateTime;
 }

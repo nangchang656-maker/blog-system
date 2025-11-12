@@ -1,17 +1,20 @@
 package cn.lzx.blog.service.impl;
 
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+
 import cn.lzx.blog.mapper.CategoryMapper;
 import cn.lzx.blog.service.CategoryService;
 import cn.lzx.blog.vo.CategoryVO;
 import cn.lzx.entity.Category;
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
-import java.util.List;
-import java.util.stream.Collectors;
 
 /**
  * 分类Service实现类
@@ -70,21 +73,46 @@ public class CategoryServiceImpl implements CategoryService {
         }
 
         // 不存在则创建新分类
-        // 获取当前最大排序值
-        LambdaQueryWrapper<Category> sortWrapper = new LambdaQueryWrapper<>();
-        sortWrapper.orderByDesc(Category::getSort).last("LIMIT 1");
-        Category maxSortCategory = categoryMapper.selectOne(sortWrapper);
-        int nextSort = (maxSortCategory != null && maxSortCategory.getSort() != null)
-                ? maxSortCategory.getSort() + 1 : 0;
-
         Category newCategory = Category.builder()
                 .name(name)
-                .sort(nextSort)
+                .sort(0)
                 .build();
 
+        // TODO: 定时任务清理长期不使用的分类
         categoryMapper.insert(newCategory);
         log.info("创建新分类: {}, ID: {}", name, newCategory.getId());
 
         return newCategory.getId();
+    }
+
+    @Override
+    public List<CategoryVO> getCategoryListByIds(List<Long> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return java.util.Collections.emptyList();
+        }
+        List<Category> categories = categoryMapper.selectBatchIds(ids);
+        return categories.stream()
+                .map(category -> CategoryVO.builder()
+                        .id(category.getId())
+                        .name(category.getName())
+                        .sort(category.getSort())
+                        .build())
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public Map<Long, CategoryVO> getCategoryMapByIds(List<Long> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return java.util.Collections.emptyMap();
+        }
+        return categoryMapper.selectBatchIds(ids)
+                .stream()
+                .collect(Collectors.toMap(
+                        Category::getId,
+                        category -> CategoryVO.builder()
+                                .id(category.getId())
+                                .name(category.getName())
+                                .sort(category.getSort())
+                                .build()));
     }
 }

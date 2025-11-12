@@ -45,28 +45,26 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
             // 2. 如果Token存在且有效，设置认证信息
             if (StringUtils.hasText(token) && tokenService.validateAccessToken(token)) {
-                // 3. 从Token中获取用户信息
+                // 3. 从Token中获取用户信息（如果token无效会抛出异常，被外层catch捕获）
                 Long userId = tokenService.getUserIdFromToken(token);
                 String username = tokenService.getUsernameFromToken(token);
 
-                if (userId != null && username != null) {
-                    // 4. 创建认证对象
-                    UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
-                            userId,
-                            null,
-                            Collections.emptyList());
+                // 4. 创建认证对象
+                UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
+                        userId,
+                        null,
+                        Collections.emptyList());
 
-                    // 5. 设置请求详情
-                    authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                // 5. 设置请求详情
+                authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
 
-                    // 6. 将认证信息设置到Security上下文
-                    SecurityContextHolder.getContext().setAuthentication(authentication);
+                // 6. 将认证信息设置到Security上下文
+                SecurityContextHolder.getContext().setAuthentication(authentication);
 
-                    // 7. Token自动续期：如果剩余时间少于阈值，返回新Token
-                    renewTokenIfNeeded(token, userId, username, response);
+                // 7. Token自动续期：如果剩余时间少于阈值，返回新Token
+                renewTokenIfNeeded(token, userId, username, response);
 
-                    log.debug("用户 {} 认证成功", username);
-                }
+                log.debug("用户 {} 认证成功", username);
             }
         } catch (Exception e) {
             log.error("JWT认证失败: {}", e.getMessage());

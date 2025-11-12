@@ -1,15 +1,16 @@
 package cn.lzx.blog.service.impl;
 
+import java.util.Arrays;
+import java.util.List;
+
+import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
+
 import cn.lzx.blog.integration.storage.MinioUtil;
 import cn.lzx.blog.service.FileUploadService;
 import cn.lzx.exception.BusinessException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Service;
-import org.springframework.web.multipart.MultipartFile;
-
-import java.util.Arrays;
-import java.util.List;
 
 /**
  * 文件上传Service实现类
@@ -23,8 +24,11 @@ public class FileUploadServiceImpl implements FileUploadService {
 
     // 支持的图片格式
     private static final List<String> ALLOWED_IMAGE_TYPES = Arrays.asList(
-        "image/jpeg", "image/png", "image/jpg"
-    );
+            "image/jpeg", "image/png", "image/jpg");
+
+    // 支持的图片文件扩展名
+    private static final List<String> ALLOWED_IMAGE_EXTENSIONS = Arrays.asList(
+            ".jpg", ".jpeg", ".png");
 
     // 头像大小限制 2MB
     private static final long AVATAR_MAX_SIZE = 2 * 1024 * 1024;
@@ -35,7 +39,7 @@ public class FileUploadServiceImpl implements FileUploadService {
     @Override
     public String uploadAvatar(MultipartFile file, Long userId) {
         // 1. 校验文件
-        validateFile(file, AVATAR_MAX_SIZE);
+        validateAvatarFile(file);
 
         try {
             // 2. 生成固定文件名：avatars/user_{userId}_avatar.{ext}
@@ -60,7 +64,7 @@ public class FileUploadServiceImpl implements FileUploadService {
     @Override
     public String uploadArticleCover(MultipartFile file, Long userId, Long articleId) {
         // 1. 校验文件
-        validateFile(file, COVER_MAX_SIZE);
+        validateCoverFile(file);
 
         try {
             String originalFilename = file.getOriginalFilename();
@@ -74,9 +78,10 @@ public class FileUploadServiceImpl implements FileUploadService {
                 // 3a. 删除旧封面（如果存在不同格式的旧文件）
                 deleteOldArticleCovers(articleId, fileExtension);
             } else {
+                // TODO: 定时任务清理临时且不再使用的文件
                 // 2b. 如果没有articleId(新建文章时),生成临时文件名：covers/user_{userId}_temp_{timestamp}.{ext}
                 fileName = String.format("covers/user_%d_temp_%d%s",
-                    userId, System.currentTimeMillis(), fileExtension);
+                        userId, System.currentTimeMillis(), fileExtension);
             }
 
             // 4. 上传到 MinIO（覆盖式上传）
@@ -96,9 +101,9 @@ public class FileUploadServiceImpl implements FileUploadService {
     }
 
     /**
-     * 校验文件
+     * 校验头像文件
      */
-    private void validateFile(MultipartFile file, long maxSize) {
+    private void validateAvatarFile(MultipartFile file) {
         // 1. 校验文件是否为空
         if (file == null || file.isEmpty()) {
             throw new BusinessException("文件不能为空");
@@ -111,8 +116,36 @@ public class FileUploadServiceImpl implements FileUploadService {
         }
 
         // 3. 校验文件大小
-        if (file.getSize() > maxSize) {
-            long maxSizeMB = maxSize / 1024 / 1024;
+        if (file.getSize() > AVATAR_MAX_SIZE) {
+            long maxSizeMB = AVATAR_MAX_SIZE / 1024 / 1024;
+            throw new BusinessException(String.format("图片大小不能超过 %dMB", maxSizeMB));
+        }
+
+        // 4. 校验文件名
+        String originalFilename = file.getOriginalFilename();
+        if (originalFilename == null || !isImageFile(originalFilename)) {
+            throw new BusinessException("只支持上传 JPG、PNG 格式的图片");
+        }
+    }
+
+    /**
+     * 校验封面文件
+     */
+    private void validateCoverFile(MultipartFile file) {
+        // 1. 校验文件是否为空
+        if (file == null || file.isEmpty()) {
+            throw new BusinessException("文件不能为空");
+        }
+
+        // 2. 校验文件类型
+        String contentType = file.getContentType();
+        if (contentType == null || !ALLOWED_IMAGE_TYPES.contains(contentType)) {
+            throw new BusinessException("只支持上传 JPG、PNG 格式的图片");
+        }
+
+        // 3. 校验文件大小
+        if (file.getSize() > COVER_MAX_SIZE) {
+            long maxSizeMB = COVER_MAX_SIZE / 1024 / 1024;
             throw new BusinessException(String.format("图片大小不能超过 %dMB", maxSizeMB));
         }
 
@@ -142,19 +175,15 @@ public class FileUploadServiceImpl implements FileUploadService {
             return false;
         }
         String lowerCaseFilename = filename.toLowerCase();
-        return lowerCaseFilename.endsWith(".jpg")
-            || lowerCaseFilename.endsWith(".jpeg")
-            || lowerCaseFilename.endsWith(".png");
+        return ALLOWED_IMAGE_EXTENSIONS.stream()
+                .anyMatch(lowerCaseFilename::endsWith);
     }
 
     /**
      * 删除用户的旧头像文件（处理不同格式的情况）
      */
     private void deleteOldAvatars(Long userId, String currentExtension) {
-        // 常见图片格式
-        String[] extensions = {".jpg", ".jpeg", ".png"};
-
-        for (String ext : extensions) {
+        for (String ext : ALLOWED_IMAGE_EXTENSIONS) {
             // 跳过当前要上传的格式（MinIO会自动覆盖）
             if (ext.equalsIgnoreCase(currentExtension)) {
                 continue;
@@ -170,10 +199,7 @@ public class FileUploadServiceImpl implements FileUploadService {
      * 删除文章的旧封面文件（处理不同格式的情况）
      */
     private void deleteOldArticleCovers(Long articleId, String currentExtension) {
-        // 常见图片格式
-        String[] extensions = {".jpg", ".jpeg", ".png"};
-
-        for (String ext : extensions) {
+        for (String ext : ALLOWED_IMAGE_EXTENSIONS) {
             // 跳过当前要上传的格式（MinIO会自动覆盖）
             if (ext.equalsIgnoreCase(currentExtension)) {
                 continue;

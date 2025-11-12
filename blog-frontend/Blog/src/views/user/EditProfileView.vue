@@ -19,7 +19,7 @@ const editForm = reactive({
   nickname: '',
   email: '',
   phone: '',
-  bio: ''
+  intro: ''
 })
 
 // 密码修改表单
@@ -52,7 +52,7 @@ onMounted(async () => {
       nickname: userStore.userInfo.nickname || '',
       email: userStore.userInfo.email || '',
       phone: userStore.userInfo.phone || '',
-      bio: userStore.userInfo.bio || ''
+      intro: userStore.userInfo.intro || ''
     })
   }
 })
@@ -94,7 +94,7 @@ const editRules = {
   phone: [
     { pattern: /^1[3-9]\d{9}$/, message: '请输入正确的手机号', trigger: 'blur' }
   ],
-  bio: [
+  intro: [
     { max: 200, message: '个人简介最多200个字符', trigger: 'blur' }
   ]
 }
@@ -255,18 +255,8 @@ const doUpload = async (file: File) => {
     // 3. 更新本地表单头像 URL
     editForm.avatar = avatarUrlWithTimestamp
 
-    console.log('💾 准备保存到数据库...')
-    // 4. 立即保存到后端数据库（保存不带时间戳的URL）
-    await updateUserInfoApi({
-      nickname: editForm.nickname,
-      phone: editForm.phone || undefined,
-      avatar: result.url,  // 数据库保存原始URL
-      bio: editForm.bio
-    })
-    console.log('✅ 数据库保存成功')
-
     console.log('🔄 准备刷新用户信息...')
-    // 5. 刷新全局用户信息状态
+    // 4. 刷新全局用户信息状态（头像已由后端自动更新到数据库）
     await userStore.getUserInfo()
     console.log('✅ 用户信息刷新成功')
 
@@ -306,8 +296,7 @@ const handleSaveInfo = async () => {
         await updateUserInfoApi({
           nickname: editForm.nickname,
           phone: editForm.phone || undefined,
-          avatar: editForm.avatar,
-          bio: editForm.bio
+          intro: editForm.intro
         })
         await userStore.getUserInfo()
         ElMessage.success('保存成功')
@@ -408,9 +397,9 @@ const goBack = () => {
               <el-input v-model="editForm.phone" placeholder="请输入手机号" />
             </el-form-item>
 
-            <el-form-item label="个人简介" prop="bio">
+            <el-form-item label="个人简介" prop="intro">
               <el-input
-                v-model="editForm.bio"
+                v-model="editForm.intro"
                 type="textarea"
                 :rows="4"
                 placeholder="介绍一下自己吧"

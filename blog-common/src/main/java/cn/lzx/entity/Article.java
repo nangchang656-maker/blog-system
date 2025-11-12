@@ -1,14 +1,17 @@
 package cn.lzx.entity;
 
-import com.baomidou.mybatisplus.annotation.*;
+import java.io.Serializable;
+import java.time.LocalDateTime;
+
+import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableLogic;
+import com.baomidou.mybatisplus.annotation.TableName;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-
-import java.io.Serializable;
-import java.time.LocalDateTime;
 
 /**
  * 文章实体类
@@ -42,9 +45,9 @@ public class Article implements Serializable {
     private String title;
 
     /**
-     * 摘要
+     * 封面图
      */
-    private String summary;
+    private String coverImage;
 
     /**
      * 内容
@@ -52,9 +55,9 @@ public class Article implements Serializable {
     private String content;
 
     /**
-     * 封面图
+     * 摘要
      */
-    private String coverImage;
+    private String summary;
 
     /**
      * 分类ID
@@ -100,12 +103,10 @@ public class Article implements Serializable {
     /**
      * 创建时间
      */
-    @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createTime;
 
     /**
      * 更新时间
      */
-    @TableField(fill = FieldFill.INSERT_UPDATE)
     private LocalDateTime updateTime;
 }

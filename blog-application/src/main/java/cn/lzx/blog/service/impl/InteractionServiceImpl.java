@@ -17,7 +17,7 @@ import cn.lzx.entity.Comment;
 import cn.lzx.entity.LikeRecord;
 import cn.lzx.entity.Tag;
 import cn.lzx.entity.User;
-import cn.lzx.exception.CommonException;
+import cn.lzx.exception.BusinessException;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import lombok.RequiredArgsConstructor;
@@ -54,7 +54,7 @@ public class InteractionServiceImpl implements InteractionService {
         // 1. 验证文章是否存在
         Article article = articleMapper.selectById(articleId);
         if (article == null) {
-            throw new CommonException("文章不存在");
+            throw new BusinessException("文章不存在");
         }
 
         // 2. 查询是否存在点赞记录（包括已逻辑删除的）
@@ -63,13 +63,13 @@ public class InteractionServiceImpl implements InteractionService {
         if (existRecord != null) {
             // 2.1 如果记录存在且未删除，说明已经点赞过
             if (existRecord.getDeleted() == 0) {
-                throw new CommonException("您已经点赞过该文章");
+                throw new BusinessException("您已经点赞过该文章");
             }
 
             // 2.2 如果记录存在但已删除，恢复该记录（将deleted改为0）
             int restored = likeRecordMapper.restoreDeleted(userId, articleId, 1);
             if (restored <= 0) {
-                throw new CommonException("点赞失败");
+                throw new BusinessException("点赞失败");
             }
             log.info("用户[{}]点赞文章[{}]成功（恢复已删除记录）", userId, articleId);
         } else {
@@ -82,7 +82,7 @@ public class InteractionServiceImpl implements InteractionService {
 
             int result = likeRecordMapper.insert(likeRecord);
             if (result <= 0) {
-                throw new CommonException("点赞失败");
+                throw new BusinessException("点赞失败");
             }
             log.info("用户[{}]点赞文章[{}]成功（新增记录）", userId, articleId);
         }
@@ -102,13 +102,13 @@ public class InteractionServiceImpl implements InteractionService {
 
         LikeRecord likeRecord = likeRecordMapper.selectOne(wrapper);
         if (likeRecord == null) {
-            throw new CommonException("您还未点赞该文章");
+            throw new BusinessException("您还未点赞该文章");
         }
 
         // 2. 逻辑删除点赞记录
         int result = likeRecordMapper.deleteById(likeRecord.getId());
         if (result <= 0) {
-            throw new CommonException("取消点赞失败");
+            throw new BusinessException("取消点赞失败");
         }
 
         // 3. 减少文章点赞数
@@ -123,7 +123,7 @@ public class InteractionServiceImpl implements InteractionService {
         // 1. 验证文章是否存在
         Article article = articleMapper.selectById(articleId);
         if (article == null) {
-            throw new CommonException("文章不存在");
+            throw new BusinessException("文章不存在");
         }
 
         // 2. 查询是否存在收藏记录（包括已逻辑删除的）
@@ -132,13 +132,13 @@ public class InteractionServiceImpl implements InteractionService {
         if (existCollect != null) {
             // 2.1 如果记录存在且未删除，说明已经收藏过
             if (existCollect.getDeleted() == 0) {
-                throw new CommonException("您已经收藏过该文章");
+                throw new BusinessException("您已经收藏过该文章");
             }
 
             // 2.2 如果记录存在但已删除，恢复该记录（将deleted改为0）
             int restored = collectMapper.restoreDeleted(userId, articleId);
             if (restored <= 0) {
-                throw new CommonException("收藏失败");
+                throw new BusinessException("收藏失败");
             }
             log.info("用户[{}]收藏文章[{}]成功（恢复已删除记录）", userId, articleId);
         } else {
@@ -150,7 +150,7 @@ public class InteractionServiceImpl implements InteractionService {
 
             int result = collectMapper.insert(collect);
             if (result <= 0) {
-                throw new CommonException("收藏失败");
+                throw new BusinessException("收藏失败");
             }
             log.info("用户[{}]收藏文章[{}]成功（新增记录）", userId, articleId);
         }
@@ -169,16 +169,17 @@ public class InteractionServiceImpl implements InteractionService {
 
         Collect collect = collectMapper.selectOne(wrapper);
         if (collect == null) {
-            throw new CommonException("您还未收藏该文章");
+            throw new BusinessException("您还未收藏该文章");
         }
 
         // 2. 逻辑删除收藏记录
         int result = collectMapper.deleteById(collect.getId());
         if (result <= 0) {
-            throw new CommonException("取消收藏失败");
+            throw new BusinessException("取消收藏失败");
         }
 
         // 3. 减少文章收藏数
+        // TODO: 存放到redis中,通过定时任务更新数据库
         articleMapper.decrementCollectCount(articleId);
 
         log.info("用户[{}]取消收藏文章[{}]成功", userId, articleId);
@@ -298,7 +299,7 @@ public class InteractionServiceImpl implements InteractionService {
         // 1. 验证评论是否存在
         Comment comment = commentMapper.selectById(commentId);
         if (comment == null || comment.getDeleted() == 1) {
-            throw new CommonException("评论不存在");
+            throw new BusinessException("评论不存在");
         }
 
         // 2. 查询是否存在点赞记录（包括已逻辑删除的）
@@ -307,13 +308,13 @@ public class InteractionServiceImpl implements InteractionService {
         if (existRecord != null) {
             // 2.1 如果记录存在且未删除，说明已经点赞过
             if (existRecord.getDeleted() == 0) {
-                throw new CommonException("您已经点赞过该评论");
+                throw new BusinessException("您已经点赞过该评论");
             }
 
             // 2.2 如果记录存在但已删除，恢复该记录（将deleted改为0）
             int restored = likeRecordMapper.restoreDeleted(userId, commentId, 2);
             if (restored <= 0) {
-                throw new CommonException("点赞失败");
+                throw new BusinessException("点赞失败");
             }
             log.info("用户[{}]点赞评论[{}]成功（恢复已删除记录）", userId, commentId);
         } else {
@@ -326,7 +327,7 @@ public class InteractionServiceImpl implements InteractionService {
 
             int result = likeRecordMapper.insert(likeRecord);
             if (result <= 0) {
-                throw new CommonException("点赞失败");
+                throw new BusinessException("点赞失败");
             }
             log.info("用户[{}]点赞评论[{}]成功（新增记录）", userId, commentId);
         }
@@ -346,13 +347,13 @@ public class InteractionServiceImpl implements InteractionService {
 
         LikeRecord likeRecord = likeRecordMapper.selectOne(wrapper);
         if (likeRecord == null) {
-            throw new CommonException("您还未点赞该评论");
+            throw new BusinessException("您还未点赞该评论");
         }
 
         // 2. 逻辑删除点赞记录
         int result = likeRecordMapper.deleteById(likeRecord.getId());
         if (result <= 0) {
-            throw new CommonException("取消点赞失败");
+            throw new BusinessException("取消点赞失败");
         }
 
         // 3. 减少评论点赞数
