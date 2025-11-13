@@ -86,6 +86,38 @@ public class RedisUtil {
         return redisTemplate.getExpire(key);
     }
 
+    /**
+     * 递增操作（用于限流等场景）
+     * 
+     * @param key Redis键
+     * @return 递增后的值
+     */
+    public Long increment(String key) {
+        return redisTemplate.opsForValue().increment(key);
+    }
+
+    /**
+     * 递增操作（指定增量）
+     * 
+     * @param key   Redis键
+     * @param delta 增量
+     * @return 递增后的值
+     */
+    public Long increment(String key, long delta) {
+        return redisTemplate.opsForValue().increment(key, delta);
+    }
+
+    /**
+     * 获取并递增（原子操作）
+     * 如果key不存在，先初始化为0再递增
+     * 
+     * @param key Redis键
+     * @return 递增后的值
+     */
+    public Long getAndIncrement(String key) {
+        return redisTemplate.opsForValue().increment(key);
+    }
+
     // ========== Hash操作 ==========
 
     /**

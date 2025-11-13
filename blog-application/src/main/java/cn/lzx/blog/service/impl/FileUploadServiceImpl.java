@@ -78,8 +78,8 @@ public class FileUploadServiceImpl implements FileUploadService {
                 // 3a. 删除旧封面（如果存在不同格式的旧文件）
                 deleteOldArticleCovers(articleId, fileExtension);
             } else {
-                // TODO: 定时任务清理临时且不再使用的文件
                 // 2b. 如果没有articleId(新建文章时),生成临时文件名：covers/user_{userId}_temp_{timestamp}.{ext}
+                // 注意：临时文件由定时任务自动清理（超过24小时且未被引用的文件）
                 fileName = String.format("covers/user_%d_temp_%d%s",
                         userId, System.currentTimeMillis(), fileExtension);
             }

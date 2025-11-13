@@ -2,7 +2,9 @@ package cn.lzx.blog.integration.storage;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -10,12 +12,15 @@ import org.springframework.stereotype.Component;
 
 import cn.lzx.blog.config.minio.MinioProperties;
 import io.minio.BucketExistsArgs;
+import io.minio.ListObjectsArgs;
 import io.minio.MakeBucketArgs;
 import io.minio.MinioClient;
 import io.minio.PutObjectArgs;
 import io.minio.RemoveObjectArgs;
+import io.minio.Result;
 import io.minio.SetBucketPolicyArgs;
 import io.minio.StatObjectArgs;
+import io.minio.messages.Item;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
@@ -199,6 +204,43 @@ public class MinioUtil {
             log.error("文件删除失败: {}", fileName, e);
             // 删除失败不抛异常，避免影响主流程
         }
+    }
+
+    /**
+     * 列出指定前缀的所有文件
+     *
+     * @param prefix 文件前缀（例如：covers/user_）
+     * @return 文件对象列表
+     */
+    public List<Item> listObjects(String prefix) {
+        List<Item> items = new ArrayList<>();
+        try {
+            Iterable<Result<Item>> results = minioClient.listObjects(
+                    ListObjectsArgs.builder()
+                            .bucket(minioProperties.getBucketName())
+                            .prefix(prefix)
+                            .recursive(true)
+                            .build());
+
+            for (Result<Item> result : results) {
+                Item item = result.get();
+                items.add(item);
+            }
+        } catch (Exception e) {
+            log.error("列出文件失败，前缀: {}", prefix, e);
+        }
+        return items;
+    }
+
+    /**
+     * 获取文件的完整URL
+     *
+     * @param fileName 文件名
+     * @return 完整的文件访问URL
+     */
+    public String getFileUrl(String fileName) {
+        return String.format("%s/%s/%s", minioProperties.getEndpoint(),
+                minioProperties.getBucketName(), fileName);
     }
 
 }

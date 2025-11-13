@@ -29,6 +29,11 @@ public enum RedisKeyEnum {
      */
     KEY_ACCESS_TOKEN_BLACKLIST("blog:auth:token_blacklist:%s", 15 * 60),
 
+    /**
+     * 接口限流 - KEY格式: blog:rate_limit:{key}:{identifier} 过期时间: 动态设置（根据限流时间窗口）
+     */
+    KEY_RATE_LIMIT("blog:rate_limit:%s:%s", -1),
+
     // ======================== 缓存相关 ========================
     /**
      * 文章详情缓存 - KEY格式: blog:cache:article:{articleId} 过期时间: 10分钟

@@ -952,6 +952,11 @@ const handleCancel = () => {
 
 // 自动保存草稿（静默保存，不提示用户）
 const autoSaveDraft = debounce(async () => {
+  // 如果文章是已发布状态，不进行自动保存（避免将已发布文章改为草稿）
+  if (form.status === 1) {
+    return
+  }
+
   // 如果没有标题或内容，不自动保存
   if (!form.title.trim() && !form.content.trim()) {
     return
