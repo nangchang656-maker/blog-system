@@ -131,7 +131,7 @@ async function handleUnauthorized(originalRequest: InternalAxiosRequestConfig & 
 // ==================== 创建 Axios 实例 ====================
 
 const request: AxiosInstance = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080',
+  baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8088',
   timeout: 15000,
   headers: {
     'Content-Type': 'application/json;charset=utf-8'
@@ -183,7 +183,13 @@ request.interceptors.response.use(
   async (error) => {
     // 网络层错误处理
     if (error.code === 'ECONNABORTED') {
-      ElMessage.error('请求超时，请稍后重试')
+      // 判断是否是AI接口，给出更友好的提示
+      const isAIApi = error.config?.url?.includes('/api/ai/')
+      if (isAIApi) {
+        ElMessage.error('AI处理时间较长，请稍后重试或稍等片刻')
+      } else {
+        ElMessage.error('请求超时，请稍后重试')
+      }
       return Promise.reject(error)
     }
 

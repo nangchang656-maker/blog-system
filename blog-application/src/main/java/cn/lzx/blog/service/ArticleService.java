@@ -79,4 +79,13 @@ public interface ArticleService {
      * @param articleId 文章ID
      */
     void decrementCommentCount(Long articleId);
+
+    /**
+     * 获取热门文章列表
+     * 从Redis ZSet中获取热门文章排行榜
+     *
+     * @param limit 返回数量限制
+     * @return 热门文章列表
+     */
+    java.util.List<ArticleListVO> getHotArticles(Integer limit);
 }

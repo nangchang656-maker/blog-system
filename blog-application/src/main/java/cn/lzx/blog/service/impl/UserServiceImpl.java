@@ -29,7 +29,6 @@ import cn.lzx.entity.User;
 import cn.lzx.enums.RedisKeyEnum;
 import cn.lzx.exception.BusinessException;
 import cn.lzx.service.TokenService;
-import cn.lzx.utils.AesUtil;
 import cn.lzx.utils.EmailSendUtil;
 import cn.lzx.utils.RedisUtil;
 import lombok.RequiredArgsConstructor;
@@ -94,17 +93,8 @@ public class UserServiceImpl implements UserService {
             throw new BusinessException("验证码错误");
         }
 
-        // 4. AES解密密码
-        String plainPassword;
-        try {
-            plainPassword = AesUtil.decrypt(dto.getPassword());
-        } catch (Exception e) {
-            log.error("密码解密失败", e);
-            throw new BusinessException("密码格式错误");
-        }
-
-        // 5. BCrypt加密存储
-        String encryptedPassword = passwordEncoder.encode(plainPassword);
+        // 4. BCrypt加密存储（密码当前为HTTP明文传输，生产环境建议配置HTTPS）
+        String encryptedPassword = passwordEncoder.encode(dto.getPassword());
 
         // 6. 创建用户
         User user = User.builder()
@@ -142,17 +132,8 @@ public class UserServiceImpl implements UserService {
             throw new BusinessException("账号已被禁用");
         }
 
-        // 3. AES解密密码
-        String plainPassword;
-        try {
-            plainPassword = AesUtil.decrypt(dto.getPassword());
-        } catch (Exception e) {
-            log.error("密码解密失败", e);
-            throw new BusinessException("密码格式错误");
-        }
-
-        // 4. 验证密码
-        if (!passwordEncoder.matches(plainPassword, user.getPassword())) {
+        // 3. 验证密码（密码当前为HTTP明文传输，生产环境建议配置HTTPS）
+        if (!passwordEncoder.matches(dto.getPassword(), user.getPassword())) {
             throw new BusinessException("密码错误");
         }
 
@@ -173,11 +154,27 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public UserInfoVO getUserInfo(Long userId) {
+        // 尝试从缓存获取用户信息
+        String cacheKey = RedisKeyEnum.KEY_USER_CACHE.getKey(userId);
+        Object cached = redisUtil.get(cacheKey);
+        if (cached != null && cached instanceof UserInfoVO) {
+            log.debug("从缓存获取用户信息: userId={}", userId);
+            return (UserInfoVO) cached;
+        }
+
+        // 缓存未命中，从数据库查询
         User user = userMapper.selectById(userId);
         if (user == null) {
             throw new BusinessException("用户不存在");
         }
-        return convertToUserInfoVO(user);
+        
+        UserInfoVO userInfo = convertToUserInfoVO(user);
+        
+        // 存入缓存（30分钟过期）
+        redisUtil.set(cacheKey, userInfo, RedisKeyEnum.KEY_USER_CACHE.getExpire(), TimeUnit.SECONDS);
+        log.debug("用户信息已存入缓存: userId={}", userId);
+        
+        return userInfo;
     }
 
     @Override
@@ -198,6 +195,10 @@ public class UserServiceImpl implements UserService {
                 .build();
 
         userMapper.updateById(updateUser);
+
+        // 清除用户信息缓存
+        String cacheKey = RedisKeyEnum.KEY_USER_CACHE.getKey(userId);
+        redisUtil.delete(cacheKey);
 
         log.info("用户信息更新成功: userId={}", userId);
     }
@@ -229,6 +230,10 @@ public class UserServiceImpl implements UserService {
 
         userMapper.updateById(updateUser);
 
+        // 清除用户信息缓存
+        String cacheKey = RedisKeyEnum.KEY_USER_CACHE.getKey(userId);
+        redisUtil.delete(cacheKey);
+
         log.info("用户头像更新成功: userId={}, avatarUrl={}", userId, avatarUrl);
     }
 
@@ -251,17 +256,8 @@ public class UserServiceImpl implements UserService {
             throw new BusinessException("验证码错误");
         }
 
-        // 3. AES解密新密码
-        String plainPassword;
-        try {
-            plainPassword = AesUtil.decrypt(dto.getNewPassword());
-        } catch (Exception e) {
-            log.error("密码解密失败", e);
-            throw new BusinessException("密码格式错误");
-        }
-
-        // 4. BCrypt加密并更新
-        String encryptedPassword = passwordEncoder.encode(plainPassword);
+        // 3. BCrypt加密并更新（密码当前为HTTP明文传输，生产环境建议配置HTTPS）
+        String encryptedPassword = passwordEncoder.encode(dto.getNewPassword());
         User updateUser = User.builder()
                 .id(userId)
                 .password(encryptedPassword)

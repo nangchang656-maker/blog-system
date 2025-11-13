@@ -6,7 +6,6 @@ import { Plus, Lock } from '@element-plus/icons-vue'
 import type { UploadProps, UploadRawFile } from 'element-plus'
 import { useUserStore } from '@/stores/user'
 import { updateUserInfoApi, updatePasswordApi, sendEmailCodeApi, uploadAvatarApi } from '@/api/user'
-import { encrypt } from '@/utils/crypto'
 import { compressImage, blobToFile } from '@/utils/imageCompress'
 import ImageCropper from '@/components/ImageCropper.vue'
 
@@ -319,7 +318,7 @@ const handleChangePassword = async () => {
       try {
         await updatePasswordApi({
           code: passwordForm.code,
-          newPassword: encrypt(passwordForm.newPassword) // AES加密
+          newPassword: passwordForm.newPassword
         })
         ElMessage.success('密码修改成功，请重新登录')
         passwordFormRef.value.resetFields()

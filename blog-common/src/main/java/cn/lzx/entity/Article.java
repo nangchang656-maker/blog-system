@@ -60,6 +60,11 @@ public class Article implements Serializable {
     private String summary;
 
     /**
+     * 大纲（Markdown格式）
+     */
+    private String outline;
+
+    /**
      * 分类ID
      */
     private Long categoryId;

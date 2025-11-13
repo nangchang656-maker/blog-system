@@ -28,5 +28,5 @@ public class UserRegisterDTO {
     private String code;
 
     @NotBlank(message = "密码不能为空")
-    private String password; // 前端AES加密后的密码
+    private String password; // 密码（当前HTTP明文传输，生产环境建议配置HTTPS）
 }

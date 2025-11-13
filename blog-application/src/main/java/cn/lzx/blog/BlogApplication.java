@@ -6,6 +6,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.autoconfigure.data.elasticsearch.ElasticsearchDataAutoConfiguration;
 import org.springframework.boot.autoconfigure.data.elasticsearch.ElasticsearchRepositoriesAutoConfiguration;
 import org.springframework.context.annotation.ComponentScan;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
 /**
  * 个人博客系统启动类
@@ -25,6 +26,7 @@ import org.springframework.context.annotation.ComponentScan;
 })
 @ComponentScan(basePackages = {"cn.lzx.blog", "cn.lzx"})
 @MapperScan("cn.lzx.blog.mapper")
+@EnableScheduling
 public class BlogApplication {
 
     public static void main(String[] args) {

@@ -41,6 +41,11 @@ public class ArticlePublishDTO {
     private String summary;
 
     /**
+     * 大纲（Markdown格式）
+     */
+    private String outline;
+
+    /**
      * 封面图URL
      */
     @Size(max = 255, message = "封面图URL长度不能超过255个字符")

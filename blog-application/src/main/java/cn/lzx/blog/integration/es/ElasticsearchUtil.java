@@ -7,6 +7,7 @@ import co.elastic.clients.elasticsearch.core.bulk.BulkOperation;
 import co.elastic.clients.elasticsearch.core.search.Hit;
 import co.elastic.clients.elasticsearch.core.search.HitsMetadata;
 import co.elastic.clients.elasticsearch.indices.*;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -34,6 +35,7 @@ public class ElasticsearchUtil {
 
     private final ElasticsearchClient elasticsearchClient;
     private final ElasticsearchProperties elasticsearchProperties;
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     /**
      * 创建索引
@@ -114,6 +116,24 @@ public class ElasticsearchUtil {
             return response.shards().successful().intValue() > 0;
         } catch (IOException e) {
             log.error("添加文档失败: {} -> {}", indexName, documentId, e);
+            return false;
+        }
+    }
+
+    /**
+     * 添加文档（使用实体类）
+     *
+     * @param indexName  索引名称
+     * @param documentId 文档 ID
+     * @param document   文档实体对象
+     * @return 是否成功
+     */
+    public <T> boolean addDocument(String indexName, String documentId, T document) {
+        try {
+            String jsonData = objectMapper.writeValueAsString(document);
+            return addDocument(indexName, documentId, jsonData);
+        } catch (Exception e) {
+            log.error("添加文档失败（实体类序列化）: {} -> {}", indexName, documentId, e);
             return false;
         }
     }
@@ -211,9 +231,26 @@ public class ElasticsearchUtil {
      * @param size            每页数量
      * @return 搜索结果列表
      */
-    @SuppressWarnings("unchecked")
     public List<Map<String, Object>> search(String indexName, String keyword, String[] searchFields,
                                              String[] highlightFields, int from, int size) {
+        SearchResult result = searchWithTotal(indexName, keyword, searchFields, highlightFields, from, size);
+        return result.getResults();
+    }
+
+    /**
+     * 全文搜索(支持高亮，返回总数)
+     *
+     * @param indexName       索引名称
+     * @param keyword         搜索关键词
+     * @param searchFields    搜索字段列表
+     * @param highlightFields 高亮字段列表
+     * @param from            起始位置(分页)
+     * @param size            每页数量
+     * @return 搜索结果（包含结果列表和总数）
+     */
+    @SuppressWarnings("unchecked")
+    public SearchResult searchWithTotal(String indexName, String keyword, String[] searchFields,
+                                        String[] highlightFields, int from, int size) {
         try {
             SearchResponse<Map<String, Object>> response = elasticsearchClient.search(s -> {
                 // 基本查询配置
@@ -246,6 +283,7 @@ public class ElasticsearchUtil {
             // 解析结果
             List<Map<String, Object>> resultList = new ArrayList<>();
             HitsMetadata<Map<String, Object>> hits = response.hits();
+            long total = hits.total() != null ? hits.total().value() : 0;
 
             for (Hit<Map<String, Object>> hit : hits.hits()) {
                 Map<String, Object> sourceMap = new HashMap<>(hit.source());
@@ -262,11 +300,32 @@ public class ElasticsearchUtil {
                 resultList.add(sourceMap);
             }
 
-            log.debug("搜索成功: {} -> 关键词: {}, 结果数: {}", indexName, keyword, resultList.size());
-            return resultList;
+            log.debug("搜索成功: {} -> 关键词: {}, 结果数: {}, 总数: {}", indexName, keyword, resultList.size(), total);
+            return new SearchResult(resultList, total);
         } catch (IOException e) {
             log.error("搜索失败: {} -> 关键词: {}", indexName, keyword, e);
-            return new ArrayList<>();
+            return new SearchResult(new ArrayList<>(), 0);
+        }
+    }
+
+    /**
+     * 搜索结果包装类
+     */
+    public static class SearchResult {
+        private final List<Map<String, Object>> results;
+        private final long total;
+
+        public SearchResult(List<Map<String, Object>> results, long total) {
+            this.results = results;
+            this.total = total;
+        }
+
+        public List<Map<String, Object>> getResults() {
+            return results;
+        }
+
+        public long getTotal() {
+            return total;
         }
     }
 }

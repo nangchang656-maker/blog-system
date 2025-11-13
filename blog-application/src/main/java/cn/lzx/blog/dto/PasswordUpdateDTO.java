@@ -17,5 +17,5 @@ public class PasswordUpdateDTO {
     private String code; // 邮箱验证码
 
     @NotBlank(message = "新密码不能为空")
-    private String newPassword; // 前端AES加密后的新密码
+    private String newPassword; // 新密码（当前HTTP明文传输，生产环境建议配置HTTPS）
 }

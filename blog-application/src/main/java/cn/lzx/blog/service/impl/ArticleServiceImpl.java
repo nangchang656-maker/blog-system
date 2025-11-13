@@ -4,6 +4,7 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
@@ -22,6 +23,7 @@ import cn.lzx.blog.mapper.CollectMapper;
 import cn.lzx.blog.mapper.LikeRecordMapper;
 import cn.lzx.blog.mapper.TagMapper;
 import cn.lzx.blog.mapper.UserMapper;
+import cn.lzx.blog.service.ArticleSearchService;
 import cn.lzx.blog.service.ArticleService;
 import cn.lzx.blog.service.CategoryService;
 import cn.lzx.blog.service.TagService;
@@ -38,9 +40,12 @@ import cn.lzx.entity.Collect;
 import cn.lzx.entity.LikeRecord;
 import cn.lzx.entity.Tag;
 import cn.lzx.entity.User;
+import cn.lzx.enums.RedisKeyEnum;
 import cn.lzx.exception.BusinessException;
+import cn.lzx.utils.RedisUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import java.util.concurrent.TimeUnit;
 
 /**
  * 文章Service实现类
@@ -61,6 +66,9 @@ public class ArticleServiceImpl implements ArticleService {
     private final CollectMapper collectMapper;
     private final CategoryService categoryService;
     private final TagService tagService;
+    private final ArticleSearchService articleSearchService;
+    private final cn.lzx.blog.integration.ai.ZhipuAIService zhipuAIService;
+    private final RedisUtil redisUtil;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -79,6 +87,7 @@ public class ArticleServiceImpl implements ArticleService {
                 .title(dto.getTitle())
                 .content(dto.getContent())
                 .summary(dto.getSummary())
+                .outline(dto.getOutline())
                 .coverImage(dto.getCoverImage())
                 .categoryId(categoryId)
                 .status(dto.getStatus())
@@ -103,6 +112,15 @@ public class ArticleServiceImpl implements ArticleService {
         if (!tagIds.isEmpty()) {
             saveArticleTags(article.getId(), tagIds);
         }
+
+        // 5. 同步文章到ES（如果已发布）
+        if (article.getStatus() == CommonConstants.ARTICLE_STATUS_PUBLISHED) {
+            articleSearchService.syncArticleToEs(article.getId());
+        }
+
+        // 6. 清除文章缓存（如果存在）
+        String cacheKey = RedisKeyEnum.KEY_ARTICLE_CACHE.getKey(article.getId());
+        redisUtil.delete(cacheKey);
 
         log.info("用户[{}]发布文章成功，文章ID: {}", userId, article.getId());
         return article.getId();
@@ -134,6 +152,7 @@ public class ArticleServiceImpl implements ArticleService {
         article.setTitle(dto.getTitle());
         article.setContent(dto.getContent());
         article.setSummary(dto.getSummary());
+        article.setOutline(dto.getOutline());
         article.setCoverImage(dto.getCoverImage());
         article.setCategoryId(categoryId);
         article.setStatus(dto.getStatus());
@@ -155,6 +174,18 @@ public class ArticleServiceImpl implements ArticleService {
         if (!tagIds.isEmpty()) {
             saveArticleTags(articleId, tagIds);
         }
+
+        // 7. 同步文章到ES（如果已发布）
+        if (article.getStatus() == CommonConstants.ARTICLE_STATUS_PUBLISHED) {
+            articleSearchService.syncArticleToEs(articleId);
+        } else {
+            // 如果不是已发布状态，从ES中删除
+            articleSearchService.deleteArticleFromEs(articleId);
+        }
+
+        // 8. 清除文章缓存
+        String cacheKey = RedisKeyEnum.KEY_ARTICLE_CACHE.getKey(articleId);
+        redisUtil.delete(cacheKey);
 
         log.info("用户[{}]更新文章成功，文章ID: {}", userId, articleId);
     }
@@ -184,11 +215,32 @@ public class ArticleServiceImpl implements ArticleService {
         wrapper.eq(ArticleTag::getArticleId, articleId);
         articleTagMapper.delete(wrapper);
 
+        // 5. 从ES中删除文章
+        articleSearchService.deleteArticleFromEs(articleId);
+
+        // 6. 清除文章缓存
+        String cacheKey = RedisKeyEnum.KEY_ARTICLE_CACHE.getKey(articleId);
+        redisUtil.delete(cacheKey);
+
         log.info("用户[{}]删除文章成功，文章ID: {}", userId, articleId);
     }
 
     @Override
     public Page<ArticleListVO> getArticleList(ArticleQueryDTO queryDTO) {
+        // 如果有关键词，使用ES搜索；否则使用数据库查询
+        if (StringUtils.hasText(queryDTO.getKeyword())) {
+            // 使用Elasticsearch全文搜索
+            return articleSearchService.searchArticles(
+                    queryDTO.getKeyword(),
+                    queryDTO.getCategoryId(),
+                    queryDTO.getTagId(),
+                    queryDTO.getOrderBy(),
+                    queryDTO.getOrderType(),
+                    queryDTO.getPage(),
+                    queryDTO.getSize());
+        }
+
+        // 无关键词时，使用数据库查询
         // 1. 构建分页对象
         Page<Article> page = new Page<>(queryDTO.getPage(), queryDTO.getSize());
 
@@ -199,14 +251,6 @@ public class ArticleServiceImpl implements ArticleService {
         // 分类筛选
         if (queryDTO.getCategoryId() != null) {
             wrapper.eq(Article::getCategoryId, queryDTO.getCategoryId());
-        }
-
-        // TODO: 采用es+ik分词,提高查询性能
-        // 关键词搜索（标题或摘要）
-        if (StringUtils.hasText(queryDTO.getKeyword())) {
-            wrapper.and(w -> w.like(Article::getTitle, queryDTO.getKeyword())
-                    .or()
-                    .like(Article::getSummary, queryDTO.getKeyword()));
         }
 
         // 排序
@@ -236,98 +280,180 @@ public class ArticleServiceImpl implements ArticleService {
     @SuppressWarnings("null")
     @Override
     public ArticleDetailVO getArticleDetail(Long articleId, Long userId) {
-        // 1. 查询文章
+        // 0. 尝试从缓存获取（仅对已发布的文章使用缓存，草稿和屏蔽文章不缓存）
+        String cacheKey = RedisKeyEnum.KEY_ARTICLE_CACHE.getKey(articleId);
+        ArticleDetailVO cachedDetail = null;
+        
+        // 先查询文章状态，判断是否可以使用缓存
         Article article = articleMapper.selectById(articleId);
         if (article == null) {
             throw new BusinessException("文章不存在");
         }
 
-        // 2. 草稿文章权限判断：只有作者本人可以查看草稿
-        if (article.getStatus() == CommonConstants.ARTICLE_STATUS_DRAFT) {
-            if (userId == null || !article.getUserId().equals(userId)) {
-                throw new BusinessException("无权限查看此文章");
+        // 只有已发布的文章才使用缓存
+        boolean useCache = article.getStatus() == CommonConstants.ARTICLE_STATUS_PUBLISHED;
+        if (useCache) {
+            Object cached = redisUtil.get(cacheKey);
+            if (cached != null && cached instanceof ArticleDetailVO) {
+                cachedDetail = (ArticleDetailVO) cached;
+                log.debug("从缓存获取文章详情: articleId={}", articleId);
             }
         }
 
-        // 3. 屏蔽文章权限判断：被屏蔽的文章不对外显示（作者本人和管理员可以查看）
-        // TODO: 使用缓存时,注意文章被屏蔽后缓存的可见性
-        if (article.getStatus() == CommonConstants.ARTICLE_STATUS_BLOCKED) {
-            if (userId == null
-                    || (!article.getUserId().equals(userId) && !AdminConstants.isAdmin(userId))) {
-                throw new BusinessException("文章不存在或已被屏蔽");
+        ArticleDetailVO articleDetail;
+        
+        if (cachedDetail != null) {
+            // 使用缓存数据，但需要更新用户相关的点赞和收藏状态
+            articleDetail = cachedDetail;
+            
+            // 更新浏览量（缓存中的数据可能不是最新的）
+            if (article.getViewCount() != null) {
+                articleDetail.setViewCount(article.getViewCount());
             }
-        }
-
-        // 4. 增加浏览量（草稿和屏蔽文章不增加浏览量）
-        if (article.getStatus() == CommonConstants.ARTICLE_STATUS_PUBLISHED) {
-            // TODO: 文章的点赞等信息单独缓存,处理缓存中的数据,通过定时任务更新数据库
+            
+            // 增加浏览量（异步更新到数据库，这里先更新内存中的值）
             articleMapper.incrementViewCount(articleId);
-            article.setViewCount(article.getViewCount() + 1);
+            if (articleDetail.getViewCount() != null) {
+                articleDetail.setViewCount(articleDetail.getViewCount() + 1);
+            }
+        } else {
+            // 缓存未命中，从数据库查询
+            // 1. 草稿文章权限判断：只有作者本人可以查看草稿
+            if (article.getStatus() == CommonConstants.ARTICLE_STATUS_DRAFT) {
+                if (userId == null || !article.getUserId().equals(userId)) {
+                    throw new BusinessException("无权限查看此文章");
+                }
+            }
+
+            // 2. 屏蔽文章权限判断：被屏蔽的文章不对外显示（作者本人和管理员可以查看）
+            if (article.getStatus() == CommonConstants.ARTICLE_STATUS_BLOCKED) {
+                if (userId == null
+                        || (!article.getUserId().equals(userId) && !AdminConstants.isAdmin(userId))) {
+                    throw new BusinessException("文章不存在或已被屏蔽");
+                }
+            }
+
+            // 3. 增加浏览量（草稿和屏蔽文章不增加浏览量）
+            if (article.getStatus() == CommonConstants.ARTICLE_STATUS_PUBLISHED) {
+                articleMapper.incrementViewCount(articleId);
+                article.setViewCount(article.getViewCount() + 1);
+            }
+
+            // 4. 查询文章作者信息（尝试从缓存获取）
+            User author = getUserFromCacheOrDb(article.getUserId());
+
+            // 5. 查询文章标签
+            List<Tag> tags = tagMapper.selectByArticleId(articleId);
+            List<TagVO> tagVOList = tags.stream()
+                    .map(tag -> TagVO.builder()
+                            .id(tag.getId())
+                            .name(tag.getName())
+                            .build())
+                    .collect(Collectors.toList());
+
+            // 6. 查询分类
+            CategoryVO category = categoryService.getCategoryById(article.getCategoryId());
+
+            // 7. 如果摘要为空，自动生成摘要（仅对已发布的文章）
+            String summary = article.getSummary();
+            if ((summary == null || summary.trim().isEmpty()) 
+                    && article.getStatus() == CommonConstants.ARTICLE_STATUS_PUBLISHED) {
+                try {
+                    log.info("文章摘要为空，自动生成摘要: articleId={}", articleId);
+                    summary = zhipuAIService.generateSummary(article.getContent());
+                } catch (Exception e) {
+                    log.warn("自动生成摘要失败: articleId={}", articleId, e);
+                    summary = "这是一篇精心编写的技术文章，欢迎阅读。";
+                }
+            }
+
+            // 8. 构建ArticleDetailVO（先不设置isLiked和isCollected）
+            articleDetail = ArticleDetailVO.builder()
+                    .id(article.getId())
+                    .title(article.getTitle())
+                    .content(article.getContent())
+                    .summary(summary)
+                    .outline(article.getOutline())
+                    .coverImage(article.getCoverImage())
+                    .categoryId(article.getCategoryId())
+                    .categoryName(category != null ? category.getName() : null)
+                    .tags(tagVOList)
+                    .authorId(article.getUserId())
+                    .authorName(author != null ? (author.getNickname() != null ? author.getNickname() : author.getUsername()) : null)
+                    .authorAvatar(author != null ? author.getAvatar() : null)
+                    .viewCount(article.getViewCount())
+                    .likeCount(article.getLikeCount())
+                    .commentCount(article.getCommentCount())
+                    .collectCount(article.getCollectCount())
+                    .isLiked(false) // 临时值，下面会更新
+                    .isCollected(false) // 临时值，下面会更新
+                    .createTime(article.getCreateTime())
+                    .updateTime(article.getUpdateTime())
+                    .build();
+            
+            // 9. 如果是已发布的文章，存入缓存（10分钟过期）
+            if (useCache) {
+                redisUtil.set(cacheKey, articleDetail, RedisKeyEnum.KEY_ARTICLE_CACHE.getExpire(), TimeUnit.SECONDS);
+                log.debug("文章详情已存入缓存: articleId={}", articleId);
+            }
         }
 
-        // 5. 查询文章作者信息
-        User author = userMapper.selectById(article.getUserId());
-
-        // 6. 查询文章标签
-        List<Tag> tags = tagMapper.selectByArticleId(articleId);
-        List<TagVO> tagVOList = tags.stream()
-                .map(tag -> TagVO.builder()
-                        .id(tag.getId())
-                        .name(tag.getName())
-                        .build())
-                .collect(Collectors.toList());
-
-        // 7. 查询分类
-        CategoryVO category = categoryService.getCategoryById(article.getCategoryId());
-
-        // 8. 查询当前用户是否点赞和收藏（如果用户已登录）
-        // TODO: 这些信息也单独缓存
+        // 10. 查询当前用户是否点赞和收藏（如果用户已登录，使用Redis Set优化查询）
         Boolean isLiked = false;
         Boolean isCollected = false;
         if (userId != null) {
-            // 查询是否点赞
-            LambdaQueryWrapper<LikeRecord> likeWrapper = new LambdaQueryWrapper<>();
-            likeWrapper.eq(LikeRecord::getUserId, userId)
-                    .eq(LikeRecord::getTargetId, articleId)
-                    .eq(LikeRecord::getType, 1); // 1表示文章点赞
-            long likeCount = likeRecordMapper.selectCount(likeWrapper);
-            isLiked = likeCount > 0;
-            log.debug("查询点赞状态 - 用户ID: {}, 文章ID: {}, 点赞记录数: {}, isLiked: {}", userId, articleId, likeCount, isLiked);
+            // 使用Redis Set查询点赞状态
+            String likeSetKey = RedisKeyEnum.KEY_ARTICLE_LIKES.getKey(articleId);
+            isLiked = redisUtil.sIsMember(likeSetKey, userId);
+            
+            // 如果Redis中没有，查询数据库并同步到Redis
+            if (!isLiked) {
+                LambdaQueryWrapper<LikeRecord> likeWrapper = new LambdaQueryWrapper<>();
+                likeWrapper.eq(LikeRecord::getUserId, userId)
+                        .eq(LikeRecord::getTargetId, articleId)
+                        .eq(LikeRecord::getType, 1); // 1表示文章点赞
+                long likeCount = likeRecordMapper.selectCount(likeWrapper);
+                isLiked = likeCount > 0;
+                
+                // 如果数据库中有记录，同步到Redis
+                if (isLiked) {
+                    redisUtil.sAdd(likeSetKey, userId);
+                }
+            }
 
-            // 查询是否收藏
+            // 查询是否收藏（收藏功能暂时不使用Redis缓存）
             LambdaQueryWrapper<Collect> collectWrapper = new LambdaQueryWrapper<>();
             collectWrapper.eq(Collect::getUserId, userId)
                     .eq(Collect::getArticleId, articleId);
             long collectCount = collectMapper.selectCount(collectWrapper);
             isCollected = collectCount > 0;
-            log.debug("查询收藏状态 - 用户ID: {}, 文章ID: {}, 收藏记录数: {}, isCollected: {}", userId, articleId, collectCount,
-                    isCollected);
-        } else {
-            log.debug("用户未登录，不查询点赞和收藏状态 - 文章ID: {}", articleId);
         }
+        
+        // 11. 设置用户相关的点赞和收藏状态
+        articleDetail.setIsLiked(isLiked);
+        articleDetail.setIsCollected(isCollected);
 
-        // 9. 构建ArticleDetailVO
-        return ArticleDetailVO.builder()
-                .id(article.getId())
-                .title(article.getTitle())
-                .content(article.getContent())
-                .summary(article.getSummary())
-                .coverImage(article.getCoverImage())
-                .categoryId(article.getCategoryId())
-                .categoryName(category != null ? category.getName() : null)
-                .tags(tagVOList)
-                .authorId(article.getUserId())
-                .authorName(author != null ? author.getNickname() : author.getUsername())
-                .authorAvatar(author != null ? author.getAvatar() : null)
-                .viewCount(article.getViewCount())
-                .likeCount(article.getLikeCount())
-                .commentCount(article.getCommentCount())
-                .collectCount(article.getCollectCount())
-                .isLiked(isLiked)
-                .isCollected(isCollected)
-                .createTime(article.getCreateTime())
-                .updateTime(article.getUpdateTime())
-                .build();
+        return articleDetail;
+    }
+
+    /**
+     * 从缓存或数据库获取用户信息
+     */
+    private User getUserFromCacheOrDb(Long userId) {
+        String userCacheKey = RedisKeyEnum.KEY_USER_CACHE.getKey(userId);
+        Object cached = redisUtil.get(userCacheKey);
+        if (cached != null && cached instanceof User) {
+            log.debug("从缓存获取用户信息: userId={}", userId);
+            return (User) cached;
+        }
+        
+        User user = userMapper.selectById(userId);
+        if (user != null) {
+            // 存入缓存（30分钟过期）
+            redisUtil.set(userCacheKey, user, RedisKeyEnum.KEY_USER_CACHE.getExpire(), TimeUnit.SECONDS);
+            log.debug("用户信息已存入缓存: userId={}", userId);
+        }
+        return user;
     }
 
     @Override
@@ -556,5 +682,60 @@ public class ArticleServiceImpl implements ArticleService {
     @Override
     public void decrementCommentCount(Long articleId) {
         articleMapper.decrementCommentCount(articleId);
+    }
+
+    @Override
+    public List<ArticleListVO> getHotArticles(Integer limit) {
+        if (limit == null || limit <= 0) {
+            limit = 10; // 默认返回10篇
+        }
+        if (limit > 100) {
+            limit = 100; // 最多返回100篇
+        }
+
+        // 1. 从Redis ZSet中获取热门文章ID（按浏览量降序）
+        String hotArticlesKey = RedisKeyEnum.KEY_HOT_ARTICLES.getKey();
+        Set<Object> articleIdSet = redisUtil.zReverseRange(hotArticlesKey, 0, limit - 1);
+
+        if (articleIdSet == null || articleIdSet.isEmpty()) {
+            log.debug("热门文章排行榜为空，返回空列表");
+            return new ArrayList<>();
+        }
+
+        // 2. 将Object转换为Long类型的文章ID列表
+        List<Long> articleIds = articleIdSet.stream()
+                .map(id -> {
+                    if (id instanceof String) {
+                        return Long.parseLong((String) id);
+                    } else if (id instanceof Long) {
+                        return (Long) id;
+                    } else if (id instanceof Number) {
+                        return ((Number) id).longValue();
+                    }
+                    return null;
+                })
+                .filter(id -> id != null)
+                .collect(Collectors.toList());
+
+        if (articleIds.isEmpty()) {
+            return new ArrayList<>();
+        }
+
+        // 3. 批量查询文章信息
+        List<Article> articles = articleMapper.selectBatchIds(articleIds);
+        if (articles.isEmpty()) {
+            return new ArrayList<>();
+        }
+
+        // 4. 按照Redis返回的顺序排序
+        Map<Long, Article> articleMap = articles.stream()
+                .collect(Collectors.toMap(Article::getId, a -> a));
+        List<Article> sortedArticles = articleIds.stream()
+                .map(articleMap::get)
+                .filter(a -> a != null && a.getStatus() == CommonConstants.ARTICLE_STATUS_PUBLISHED)
+                .collect(Collectors.toList());
+
+        // 5. 转换为ArticleListVO
+        return convertToArticleListVO(sortedArticles, null);
     }
 }

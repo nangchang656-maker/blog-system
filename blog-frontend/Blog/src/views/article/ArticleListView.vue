@@ -19,7 +19,7 @@
           </el-input>
         </el-col>
         <el-col :span="6">
-          <el-select v-model="searchParams.categoryId" placeholder="选择分类" clearable @change="handleSearch">
+          <el-select v-model="searchParams.categoryId" placeholder="选择分类" clearable @change="handleCategoryChange">
             <el-option
               v-for="category in categories"
               :key="category.id"
@@ -29,7 +29,7 @@
           </el-select>
         </el-col>
         <el-col :span="6">
-          <el-select v-model="searchParams.orderBy" @change="handleSearch">
+          <el-select v-model="searchParams.orderBy" @change="handleOrderByChange">
             <el-option label="最新发布" value="create_time" />
             <el-option label="最多浏览" value="view_count" />
             <el-option label="最多点赞" value="like_count" />
@@ -74,8 +74,8 @@
 
           <!-- 文章内容 -->
           <div class="article-body">
-            <h3 class="article-title">{{ article.title }}</h3>
-            <p class="article-summary">{{ article.summary }}</p>
+            <h3 class="article-title" v-html="article.title"></h3>
+            <p class="article-summary" v-html="article.summary"></p>
 
             <!-- 分类和标签 -->
             <div class="article-tags">
@@ -129,16 +129,16 @@
         :total="total"
         :page-sizes="[10, 20, 50, 100]"
         layout="total, sizes, prev, pager, next, jumper"
-        @current-change="loadArticles"
-        @size-change="loadArticles"
+        @current-change="handlePageChange"
+        @size-change="handlePageChange"
       />
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, onMounted, watch } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Search, View, Star, ChatDotRound, Document } from '@element-plus/icons-vue'
 import {
@@ -152,6 +152,7 @@ import {
 } from '@/api/article'
 
 const router = useRouter()
+const route = useRoute()
 
 // 搜索参数
 const searchParams = ref<ArticleQueryParams>({
@@ -168,13 +169,20 @@ const hotTags = ref<Tag[]>([])
 const total = ref(0)
 const loading = ref(false)
 
+// 是否正在从URL恢复状态（避免循环）
+const isRestoringFromUrl = ref(false)
+
 // 加载文章列表
-const loadArticles = async () => {
+const loadArticles = async (syncUrl = true) => {
   loading.value = true
   try {
     const res = await getArticleList(searchParams.value)
     articles.value = res.records
     total.value = res.total
+    // 只有在不是从URL恢复状态时才同步URL（避免循环）
+    if (syncUrl && !isRestoringFromUrl.value) {
+      syncSearchParamsToUrl()
+    }
   } catch (error) {
     ElMessage.error('加载文章列表失败')
   } finally {
@@ -202,10 +210,51 @@ const loadHotTags = async () => {
   }
 }
 
+// 同步搜索参数到URL
+const syncSearchParamsToUrl = () => {
+  const query: Record<string, any> = {}
+  if (searchParams.value.keyword) {
+    query.keyword = searchParams.value.keyword
+  }
+  if (searchParams.value.categoryId) {
+    query.categoryId = searchParams.value.categoryId
+  }
+  if (searchParams.value.tagId) {
+    query.tagId = searchParams.value.tagId
+  }
+  if (searchParams.value.page && searchParams.value.page > 1) {
+    query.page = searchParams.value.page
+  }
+  if (searchParams.value.orderBy && searchParams.value.orderBy !== 'create_time') {
+    query.orderBy = searchParams.value.orderBy
+  }
+  
+  // 使用replace避免产生历史记录
+  router.replace({
+    name: 'article-list',
+    query: Object.keys(query).length > 0 ? query : undefined
+  })
+}
+
 // 搜索
 const handleSearch = () => {
   searchParams.value.page = 1
-  loadArticles()
+  syncSearchParamsToUrl()
+  loadArticles(false) // 搜索时已经同步了URL，不需要再次同步
+}
+
+// 分类变化
+const handleCategoryChange = () => {
+  searchParams.value.page = 1
+  syncSearchParamsToUrl()
+  loadArticles(false)
+}
+
+// 排序变化
+const handleOrderByChange = () => {
+  searchParams.value.page = 1
+  syncSearchParamsToUrl()
+  loadArticles(false)
 }
 
 // 标签点击
@@ -218,9 +267,37 @@ const handleTagClick = (tagId: number) => {
   handleSearch()
 }
 
+// 分页变化
+const handlePageChange = () => {
+  syncSearchParamsToUrl()
+  loadArticles(false) // 分页时已经同步了URL，不需要再次同步
+}
+
 // 跳转到详情
 const goToDetail = (id: number) => {
-  router.push({ name: 'article-detail', params: { id } })
+  // 将搜索参数传递到详情页，以便返回时恢复搜索状态
+  const query: Record<string, any> = {}
+  if (searchParams.value.keyword) {
+    query.keyword = searchParams.value.keyword
+  }
+  if (searchParams.value.categoryId) {
+    query.categoryId = searchParams.value.categoryId
+  }
+  if (searchParams.value.tagId) {
+    query.tagId = searchParams.value.tagId
+  }
+  if (searchParams.value.page && searchParams.value.page > 1) {
+    query.page = searchParams.value.page
+  }
+  if (searchParams.value.orderBy) {
+    query.orderBy = searchParams.value.orderBy
+  }
+  
+  router.push({ 
+    name: 'article-detail', 
+    params: { id },
+    query
+  })
 }
 
 // 格式化时间
@@ -241,12 +318,74 @@ const formatTime = (time: string) => {
   return date.toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' })
 }
 
+// 从路由query参数恢复搜索状态
+const restoreSearchState = () => {
+  const query = route.query
+  let hasChanges = false
+  
+  if (query.keyword !== undefined) {
+    const newKeyword = query.keyword as string || ''
+    if (searchParams.value.keyword !== newKeyword) {
+      searchParams.value.keyword = newKeyword
+      hasChanges = true
+    }
+  }
+  if (query.categoryId !== undefined) {
+    const newCategoryId = query.categoryId ? Number(query.categoryId) : undefined
+    if (searchParams.value.categoryId !== newCategoryId) {
+      searchParams.value.categoryId = newCategoryId
+      hasChanges = true
+    }
+  }
+  if (query.tagId !== undefined) {
+    const newTagId = query.tagId ? Number(query.tagId) : undefined
+    if (searchParams.value.tagId !== newTagId) {
+      searchParams.value.tagId = newTagId
+      hasChanges = true
+    }
+  }
+  if (query.page !== undefined) {
+    const newPage = query.page ? Number(query.page) : 1
+    if (searchParams.value.page !== newPage) {
+      searchParams.value.page = newPage
+      hasChanges = true
+    }
+  }
+  if (query.orderBy !== undefined) {
+    const newOrderBy = query.orderBy as string || 'create_time'
+    if (searchParams.value.orderBy !== newOrderBy) {
+      searchParams.value.orderBy = newOrderBy
+      hasChanges = true
+    }
+  }
+  
+  return hasChanges
+}
+
 // 初始化
 onMounted(() => {
-  loadArticles()
+  // 从路由query参数恢复搜索状态（从详情页返回时或刷新页面时）
+  isRestoringFromUrl.value = true
+  restoreSearchState()
+  loadArticles(false) // 从URL恢复时不需要同步URL
+  isRestoringFromUrl.value = false
   loadCategories()
   loadHotTags()
 })
+
+// 监听路由变化，当从详情页返回时恢复搜索状态
+watch(() => route.query, (newQuery, oldQuery) => {
+  // 只在query真正变化时恢复状态（避免初始化时重复加载）
+  if (oldQuery && Object.keys(oldQuery).length > 0) {
+    isRestoringFromUrl.value = true
+    const hasChanges = restoreSearchState()
+    if (hasChanges) {
+      // 恢复状态后需要重新加载，但不再次同步URL（避免循环）
+      loadArticles(false)
+    }
+    isRestoringFromUrl.value = false
+  }
+}, { deep: true })
 </script>
 
 <style scoped lang="scss">
@@ -349,6 +488,15 @@ onMounted(() => {
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
     flex: 1;
+  }
+
+  // 搜索关键词高亮样式
+  :deep(.highlight) {
+    background-color: #fff3cd;
+    color: #856404;
+    font-weight: 600;
+    padding: 2px 4px;
+    border-radius: 3px;
   }
 
   .article-tags {

@@ -41,6 +41,11 @@ public class ArticleDetailVO {
     private String summary;
 
     /**
+     * 大纲（Markdown格式）
+     */
+    private String outline;
+
+    /**
      * 封面图
      */
     private String coverImage;

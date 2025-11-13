@@ -27,7 +27,30 @@ public enum RedisKeyEnum {
     /**
      * AccessToken黑名单 - KEY格式: blog:auth:token_blacklist:{userId} 过期时间: 15分钟
      */
-    KEY_ACCESS_TOKEN_BLACKLIST("blog:auth:token_blacklist:%s", 15 * 60);
+    KEY_ACCESS_TOKEN_BLACKLIST("blog:auth:token_blacklist:%s", 15 * 60),
+
+    // ======================== 缓存相关 ========================
+    /**
+     * 文章详情缓存 - KEY格式: blog:cache:article:{articleId} 过期时间: 10分钟
+     */
+    KEY_ARTICLE_CACHE("blog:cache:article:%s", 10 * 60),
+
+    /**
+     * 用户信息缓存 - KEY格式: blog:cache:user:{userId} 过期时间: 30分钟
+     */
+    KEY_USER_CACHE("blog:cache:user:%s", 30 * 60),
+
+    // ======================== 排行榜相关 ========================
+    /**
+     * 热门文章排行榜 - KEY格式: blog:rank:hot_articles 无过期时间（由定时任务维护）
+     */
+    KEY_HOT_ARTICLES("blog:rank:hot_articles", -1),
+
+    // ======================== 数据统计相关 ========================
+    /**
+     * 文章点赞用户集合 - KEY格式: blog:set:article_likes:{articleId} 无过期时间
+     */
+    KEY_ARTICLE_LIKES("blog:set:article_likes:%s", -1);
 
     
     private final String key;

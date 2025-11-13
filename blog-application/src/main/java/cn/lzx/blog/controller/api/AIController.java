@@ -1,15 +1,17 @@
 package cn.lzx.blog.controller.api;
 
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
 import cn.lzx.blog.dto.AIRequestDTO;
+import cn.lzx.blog.integration.ai.ZhipuAIService;
 import cn.lzx.utils.R;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
 
 /**
  * AI辅助API控制器
@@ -24,71 +26,89 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 public class AIController {
 
-    // TODO: 注入 ZhipuAI 服务
-    // private final ZhipuAIService zhipuAIService;
+    private final ZhipuAIService zhipuAIService;
 
     /**
      * AI生成文章摘要
      */
-    @Operation(summary = "AI生成文章摘要", description = "根据文章内容自动生成摘要（100-200字）")
+    @Operation(summary = "AI生成文章摘要", description = "根据文章内容自动生成摘要（100字左右）")
     @PostMapping("/summary")
     public R generateSummary(@RequestBody AIRequestDTO dto) {
-        // TODO: 集成智普AI实现
         if (dto.getContent() == null || dto.getContent().trim().isEmpty()) {
             return R.fail("内容不能为空");
         }
 
         log.info("AI生成摘要请求，内容长度: {}", dto.getContent().length());
 
-        // 临时返回模拟数据
-        String summary = "这是一篇关于技术的文章，主要介绍了相关概念和实践经验。文章内容详实，适合初学者和进阶开发者阅读。";
-        return R.success(summary);
-
-        // 实际实现：
-        // String summary = zhipuAIService.generateSummary(dto.getContent());
-        // return R.success(summary);
+        try {
+            String summary = zhipuAIService.generateSummary(dto.getContent());
+            return R.success(summary);
+        } catch (Exception e) {
+            log.error("AI生成摘要失败", e);
+            return R.fail("AI服务暂时不可用，请稍后重试");
+        }
     }
 
     /**
      * AI润色文章内容
      */
-    @Operation(summary = "AI润色文章内容", description = "优化文章表达，提升可读性和专业性")
+    @Operation(summary = "AI润色文章内容", description = "优化文章表达，提升可读性和专业性，保持技术准确性")
     @PostMapping("/polish")
     public R polishContent(@RequestBody AIRequestDTO dto) {
-        // TODO: 集成智普AI实现
         if (dto.getContent() == null || dto.getContent().trim().isEmpty()) {
             return R.fail("内容不能为空");
         }
 
         log.info("AI润色内容请求，内容长度: {}", dto.getContent().length());
 
-        // 临时返回原内容
-        return R.success(dto.getContent());
-
-        // 实际实现：
-        // String polished = zhipuAIService.polishContent(dto.getContent());
-        // return R.success(polished);
+        try {
+            String polished = zhipuAIService.polishContent(dto.getContent());
+            return R.success(polished);
+        } catch (Exception e) {
+            log.error("AI润色内容失败", e);
+            return R.fail("AI服务暂时不可用，请稍后重试");
+        }
     }
 
     /**
-     * AI生成文章大纲
+     * AI生成文章大纲（基于主题）
      */
     @Operation(summary = "AI生成文章大纲", description = "根据主题生成文章结构大纲")
     @PostMapping("/outline")
     public R generateOutline(@RequestBody AIRequestDTO dto) {
-        // TODO: 集成智普AI实现
         if (dto.getTopic() == null || dto.getTopic().trim().isEmpty()) {
             return R.fail("主题不能为空");
         }
 
         log.info("AI生成大纲请求，主题: {}", dto.getTopic());
 
-        // 临时返回模拟大纲
-        String outline = "# 一、引言\n\n# 二、核心概念\n\n## 2.1 基础知识\n\n## 2.2 进阶内容\n\n# 三、实践应用\n\n# 四、总结";
-        return R.success(outline);
+        try {
+            String outline = zhipuAIService.generateOutline(dto.getTopic());
+            return R.success(outline);
+        } catch (Exception e) {
+            log.error("AI生成大纲失败", e);
+            return R.fail("AI服务暂时不可用，请稍后重试");
+        }
+    }
 
-        // 实际实现：
-        // String outline = zhipuAIService.generateOutline(dto.getTopic());
-        // return R.success(outline);
+    /**
+     * AI基于文章内容生成大纲
+     */
+    @Operation(summary = "AI基于内容生成大纲", description = "根据文章内容提取并生成文章结构大纲")
+    @PostMapping("/outline-from-content")
+    public R generateOutlineFromContent(@RequestBody AIRequestDTO dto) {
+        if (dto.getContent() == null || dto.getContent().trim().isEmpty()) {
+            return R.fail("内容不能为空");
+        }
+
+        log.info("AI基于内容生成大纲请求，内容长度: {}", dto.getContent().length());
+
+        try {
+            String outline = zhipuAIService.generateOutlineFromContent(dto.getContent());
+            return R.success(outline);
+        } catch (Exception e) {
+            log.error("AI基于内容生成大纲失败", e);
+            return R.fail("AI服务暂时不可用，请稍后重试");
+        }
     }
 }

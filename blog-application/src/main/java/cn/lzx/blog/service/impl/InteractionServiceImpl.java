@@ -1,5 +1,15 @@
 package cn.lzx.blog.service.impl;
 
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+
 import cn.lzx.blog.mapper.ArticleMapper;
 import cn.lzx.blog.mapper.CategoryMapper;
 import cn.lzx.blog.mapper.CollectMapper;
@@ -17,17 +27,11 @@ import cn.lzx.entity.Comment;
 import cn.lzx.entity.LikeRecord;
 import cn.lzx.entity.Tag;
 import cn.lzx.entity.User;
+import cn.lzx.enums.RedisKeyEnum;
 import cn.lzx.exception.BusinessException;
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import cn.lzx.utils.RedisUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
-import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
 
 /**
  * 互动Service实现类（点赞、收藏）
@@ -47,6 +51,7 @@ public class InteractionServiceImpl implements InteractionService {
     private final CategoryMapper categoryMapper;
     private final TagMapper tagMapper;
     private final UserMapper userMapper;
+    private final RedisUtil redisUtil;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -57,23 +62,44 @@ public class InteractionServiceImpl implements InteractionService {
             throw new BusinessException("文章不存在");
         }
 
-        // 2. 查询是否存在点赞记录（包括已逻辑删除的）
+        // 2. 使用Redis Set检查是否已点赞（提高查询效率）
+        String likeSetKey = RedisKeyEnum.KEY_ARTICLE_LIKES.getKey(articleId);
+        boolean isLikedInRedis = redisUtil.sIsMember(likeSetKey, userId);
+
+        if (isLikedInRedis) {
+            // Redis中已存在，检查数据库状态
+            LambdaQueryWrapper<LikeRecord> wrapper = new LambdaQueryWrapper<>();
+            wrapper.eq(LikeRecord::getUserId, userId)
+                    .eq(LikeRecord::getTargetId, articleId)
+                    .eq(LikeRecord::getType, 1);
+            long count = likeRecordMapper.selectCount(wrapper);
+            if (count > 0) {
+                throw new BusinessException("您已经点赞过该文章");
+            } else {
+                // Redis中有但数据库中没有，可能是数据不一致，清除Redis中的记录
+                redisUtil.sRemove(likeSetKey, userId);
+            }
+        }
+
+        // 3. 查询是否存在点赞记录（包括已逻辑删除的）
         LikeRecord existRecord = likeRecordMapper.selectIncludeDeleted(userId, articleId, 1);
 
         if (existRecord != null) {
-            // 2.1 如果记录存在且未删除，说明已经点赞过
+            // 3.1 如果记录存在且未删除，说明已经点赞过
             if (existRecord.getDeleted() == 0) {
+                // 同步到Redis
+                redisUtil.sAdd(likeSetKey, userId);
                 throw new BusinessException("您已经点赞过该文章");
             }
 
-            // 2.2 如果记录存在但已删除，恢复该记录（将deleted改为0）
+            // 3.2 如果记录存在但已删除，恢复该记录（将deleted改为0）
             int restored = likeRecordMapper.restoreDeleted(userId, articleId, 1);
             if (restored <= 0) {
                 throw new BusinessException("点赞失败");
             }
             log.info("用户[{}]点赞文章[{}]成功（恢复已删除记录）", userId, articleId);
         } else {
-            // 2.3 如果记录不存在，创建新记录
+            // 3.3 如果记录不存在，创建新记录
             LikeRecord likeRecord = LikeRecord.builder()
                     .userId(userId)
                     .targetId(articleId)
@@ -87,7 +113,10 @@ public class InteractionServiceImpl implements InteractionService {
             log.info("用户[{}]点赞文章[{}]成功（新增记录）", userId, articleId);
         }
 
-        // 3. 增加文章点赞数
+        // 4. 添加到Redis Set
+        redisUtil.sAdd(likeSetKey, userId);
+
+        // 5. 增加文章点赞数
         articleMapper.incrementLikeCount(articleId);
     }
 
@@ -102,6 +131,12 @@ public class InteractionServiceImpl implements InteractionService {
 
         LikeRecord likeRecord = likeRecordMapper.selectOne(wrapper);
         if (likeRecord == null) {
+            // 检查Redis中是否存在
+            String likeSetKey = RedisKeyEnum.KEY_ARTICLE_LIKES.getKey(articleId);
+            if (redisUtil.sIsMember(likeSetKey, userId)) {
+                // Redis中有但数据库中没有，清除Redis中的记录
+                redisUtil.sRemove(likeSetKey, userId);
+            }
             throw new BusinessException("您还未点赞该文章");
         }
 
@@ -111,7 +146,11 @@ public class InteractionServiceImpl implements InteractionService {
             throw new BusinessException("取消点赞失败");
         }
 
-        // 3. 减少文章点赞数
+        // 3. 从Redis Set中移除
+        String likeSetKey = RedisKeyEnum.KEY_ARTICLE_LIKES.getKey(articleId);
+        redisUtil.sRemove(likeSetKey, userId);
+
+        // 4. 减少文章点赞数
         articleMapper.decrementLikeCount(articleId);
 
         log.info("用户[{}]取消点赞文章[{}]成功", userId, articleId);
@@ -187,11 +226,27 @@ public class InteractionServiceImpl implements InteractionService {
 
     @Override
     public boolean isLiked(Long userId, Long articleId) {
+        // 优先使用Redis Set查询（提高查询效率）
+        String likeSetKey = RedisKeyEnum.KEY_ARTICLE_LIKES.getKey(articleId);
+        boolean isLikedInRedis = redisUtil.sIsMember(likeSetKey, userId);
+
+        if (isLikedInRedis) {
+            return true;
+        }
+
+        // Redis中没有，查询数据库
         LambdaQueryWrapper<LikeRecord> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(LikeRecord::getUserId, userId)
                 .eq(LikeRecord::getTargetId, articleId)
                 .eq(LikeRecord::getType, 1); // 1表示文章点赞
-        return likeRecordMapper.selectCount(wrapper) > 0;
+        boolean isLikedInDb = likeRecordMapper.selectCount(wrapper) > 0;
+
+        // 如果数据库中有记录，同步到Redis
+        if (isLikedInDb) {
+            redisUtil.sAdd(likeSetKey, userId);
+        }
+
+        return isLikedInDb;
     }
 
     @Override
@@ -250,8 +305,7 @@ public class InteractionServiceImpl implements InteractionService {
         Map<Long, List<Tag>> articleTagsMap = articles.stream()
                 .collect(Collectors.toMap(
                         Article::getId,
-                        article -> tagMapper.selectByArticleId(article.getId())
-                ));
+                        article -> tagMapper.selectByArticleId(article.getId())));
 
         // 8. 构建ArticleListVO列表
         List<ArticleListVO> articleVOList = articles.stream()
@@ -276,7 +330,9 @@ public class InteractionServiceImpl implements InteractionService {
                             .categoryName(category != null ? category.getName() : null)
                             .tags(tagVOList)
                             .authorId(article.getUserId())
-                            .authorName(author != null ? (author.getNickname() != null ? author.getNickname() : author.getUsername()) : null)
+                            .authorName(author != null
+                                    ? (author.getNickname() != null ? author.getNickname() : author.getUsername())
+                                    : null)
                             .authorAvatar(author != null ? author.getAvatar() : null)
                             .viewCount(article.getViewCount())
                             .likeCount(article.getLikeCount())

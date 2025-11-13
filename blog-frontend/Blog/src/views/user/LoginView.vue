@@ -2,7 +2,6 @@
 import { reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user'
-import { encrypt } from '@/utils/crypto'
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -36,7 +35,7 @@ const handleLogin = async () => {
       loading.value = true
       const success = await userStore.login({
         username: loginForm.username,
-        password: encrypt(loginForm.password) // AES加密
+        password: loginForm.password
       })
       loading.value = false
 

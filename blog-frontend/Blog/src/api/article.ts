@@ -44,6 +44,7 @@ export interface ArticleDetail {
   title: string
   content: string
   summary: string
+  outline?: string
   coverImage: string
   categoryId: number
   categoryName: string
@@ -67,6 +68,7 @@ export interface ArticleFormData {
   title: string
   content: string
   summary?: string
+  outline?: string
   coverImage?: string
   categoryId?: number
   categoryName?: string
@@ -256,7 +258,8 @@ export function generateSummary(content: string) {
   return request({
     url: '/api/ai/summary',
     method: 'post',
-    data: { content }
+    data: { content },
+    timeout: 120000 // AI接口超时时间设置为120秒（2分钟）
   })
 }
 
@@ -269,12 +272,13 @@ export function polishContent(content: string) {
   return request({
     url: '/api/ai/polish',
     method: 'post',
-    data: { content }
+    data: { content },
+    timeout: 120000 // AI接口超时时间设置为120秒（2分钟），润色长文章可能需要较长时间
   })
 }
 
 /**
- * AI生成文章大纲
+ * AI生成文章大纲（基于主题）
  * @param topic 文章主题
  * @returns Markdown格式的文章大纲
  */
@@ -282,7 +286,22 @@ export function generateOutline(topic: string) {
   return request({
     url: '/api/ai/outline',
     method: 'post',
-    data: { topic }
+    data: { topic },
+    timeout: 120000 // AI接口超时时间设置为120秒（2分钟）
+  })
+}
+
+/**
+ * AI基于文章内容生成大纲
+ * @param content 文章内容
+ * @returns Markdown格式的文章大纲
+ */
+export function generateOutlineFromContent(content: string) {
+  return request({
+    url: '/api/ai/outline-from-content',
+    method: 'post',
+    data: { content },
+    timeout: 120000 // AI接口超时时间设置为120秒（2分钟）
   })
 }
 

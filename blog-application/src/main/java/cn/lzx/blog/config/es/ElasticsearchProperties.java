@@ -1,8 +1,9 @@
 package cn.lzx.blog.config.es;
 
-import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
+
+import lombok.Data;
 
 /**
  * Elasticsearch 配置属性
@@ -12,7 +13,7 @@ import org.springframework.stereotype.Component;
  */
 @Data
 @Component
-@ConfigurationProperties(prefix = "elasticsearch")
+@ConfigurationProperties(prefix = "spring.elasticsearch")
 public class ElasticsearchProperties {
 
     /**
@@ -29,4 +30,19 @@ public class ElasticsearchProperties {
      * 副本数量
      */
     private Integer numberOfReplicas = 1;
+
+    /**
+     * ES连接URI（用于ElasticsearchConfig，这里不直接使用，但保持配置一致性）
+     */
+    private String uris;
+
+    /**
+     * ES用户名（可选，如果ES启用了安全功能）
+     */
+    private String username;
+
+    /**
+     * ES密码（可选，如果ES启用了安全功能）
+     */
+    private String password;
 }

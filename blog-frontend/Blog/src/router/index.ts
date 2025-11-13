@@ -44,10 +44,10 @@ const router = createRouter({
       meta: { title: '文章列表' }
     },
     {
-      path: '/article/:id',
-      name: 'article-detail',
-      component: () => import('../views/article/ArticleDetailView.vue'),
-      meta: { title: '文章详情' }
+      path: '/my-articles',
+      name: 'my-articles',
+      component: () => import('../views/article/MyArticlesView.vue'),
+      meta: { title: '我的文章', requiresAuth: true }
     },
     {
       path: '/article/editor',
@@ -62,10 +62,10 @@ const router = createRouter({
       meta: { title: '编辑文章', requiresAuth: true }
     },
     {
-      path: '/my-articles',
-      name: 'my-articles',
-      component: () => import('../views/article/MyArticlesView.vue'),
-      meta: { title: '我的文章', requiresAuth: true }
+      path: '/article/:id',
+      name: 'article-detail',
+      component: () => import('../views/article/ArticleDetailView.vue'),
+      meta: { title: '文章详情' }
     },
     // 管理员模块路由
     {

@@ -51,6 +51,13 @@ spring:
     uris: http://localhost:9200
     connection-timeout: 5s
     socket-timeout: 60s
+    # 认证配置（可选，如果ES启用了安全功能）
+    # username: elastic
+    # password: your_password
+    # 文章索引配置
+    article-index: blog_article
+    number-of-shards: 1
+    number-of-replicas: 1
 
   # qq邮箱
   mail:

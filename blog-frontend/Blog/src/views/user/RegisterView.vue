@@ -3,7 +3,6 @@ import { reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { registerApi, sendEmailCodeApi } from '@/api/user'
-import { encrypt } from '@/utils/crypto'
 
 const router = useRouter()
 
@@ -125,7 +124,7 @@ const handleRegister = async () => {
           email: registerForm.email,
           phone: registerForm.phone || undefined,
           code: registerForm.code,
-          password: encrypt(registerForm.password) // AES加密
+          password: registerForm.password
         })
         ElMessage.success('注册成功，请登录')
         router.push('/login')
