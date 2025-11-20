@@ -16,6 +16,8 @@ export default defineConfig({
     },
   },
   server: {
-    port: 3000
+    host: '0.0.0.0', // 监听所有网络接口，允许从WSL外部访问
+    port: 3000,
+    strictPort: true // 如果端口被占用则报错
   }
 })
